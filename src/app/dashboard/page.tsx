@@ -11,9 +11,11 @@ import {
   AlertTriangle, 
   Search, 
   Trash2, 
+  Edit3,
   MessageSquare, 
   Send,
-  User
+  User,
+  Camera
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -23,6 +25,7 @@ interface Anomaly {
   title: string;
   danger_level: string;
   content: string;
+  image_url?: string;
   created_at: string;
 }
 
@@ -39,6 +42,7 @@ export default function DashboardPage() {
   const [anomalies, setAnomalies] = useState<Anomaly[]>([]);
   const [selectedAnomaly, setSelectedAnomaly] = useState<Anomaly | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -48,29 +52,41 @@ export default function DashboardPage() {
   const [commentLoading, setCommentLoading] = useState(false);
 
   useEffect(() => {
+    let isMounted = true;
+
     const checkAuthAndFetchData = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (!session) {
-        router.push('/login');
-        return;
+        if (!session) {
+          if (isMounted) router.push('/login');
+          return;
+        }
+
+        if (isMounted) {
+          setCurrentUser(session.user);
+          setCheckingAuth(false);
+          fetchAnomalies();
+        }
+      } catch (err) {
+        console.error('인증 오류:', err);
+        if (isMounted) router.push('/login');
       }
-
-      setCurrentUser(session.user);
-      fetchAnomalies();
     };
 
     checkAuthAndFetchData();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (!session) {
+      if (!session && isMounted) {
         router.push('/login');
-      } else {
+      } else if (session && isMounted) {
         setCurrentUser(session.user);
+        setCheckingAuth(false);
       }
     });
 
     return () => {
+      isMounted = false;
       authListener.subscription.unsubscribe();
     };
   }, [router]);
@@ -177,12 +193,12 @@ export default function DashboardPage() {
       item.code.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (!currentUser) {
+  if (checkingAuth) {
     return (
       <div className="min-h-screen bg-neutral-950 text-neutral-400 font-mono flex items-center justify-center">
-        <div className="text-center space-y-2">
+        <div className="text-center space-y-3">
           <ShieldAlert className="w-10 h-10 text-red-600 animate-pulse mx-auto" />
-          <p className="text-xs">보안 등급 및 인증 상태 확인 중...</p>
+          <p className="text-xs tracking-wider">요원 보안 등급 검증 및 보관소 동기화 중...</p>
         </div>
       </div>
     );
@@ -204,7 +220,7 @@ export default function DashboardPage() {
         <div className="flex items-center space-x-4">
           <div className="flex items-center space-x-1.5 text-xs text-neutral-300 bg-neutral-950 px-3 py-1.5 rounded border border-neutral-800">
             <User className="w-3.5 h-3.5 text-red-500" />
-            <span>{currentUser.email}</span>
+            <span>{currentUser?.email}</span>
           </div>
           <button
             onClick={handleLogout}
@@ -278,14 +294,23 @@ export default function DashboardPage() {
                       <span>기밀 등급 : 보안 구역 전용 문서</span>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteAnomaly(selectedAnomaly.id)}
-                      className="flex items-center space-x-1 text-xs text-neutral-500 hover:text-red-400 transition cursor-pointer"
-                      title="문서 파기"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                      <span>문서 파기</span>
-                    </button>
+                    {/* 수정 및 삭제 버튼 */}
+                    <div className="flex space-x-3">
+                      <Link
+                        href={`/edit-report/${selectedAnomaly.id}`}
+                        className="flex items-center space-x-1 text-xs text-neutral-400 hover:text-neutral-200 transition"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>문서 수정</span>
+                      </Link>
+                      <button
+                        onClick={() => handleDeleteAnomaly(selectedAnomaly.id)}
+                        className="flex items-center space-x-1 text-xs text-neutral-500 hover:text-red-400 transition cursor-pointer"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>문서 파기</span>
+                      </button>
+                    </div>
                   </div>
 
                   <h2 className="text-2xl font-bold text-neutral-100">{selectedAnomaly.title}</h2>
@@ -300,6 +325,23 @@ export default function DashboardPage() {
                   <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                   <span>주의: 본 문서의 내용을 인가되지 않은 민간인에게 유출 시 관련 법률에 의해 처벌받습니다.</span>
                 </div>
+
+                {/* 첨부된 채증 사진 출력 */}
+                {selectedAnomaly.image_url && (
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-1.5 text-xs text-neutral-400">
+                      <Camera className="w-3.5 h-3.5 text-red-500" />
+                      <span>현장 채증 자료 (기밀)</span>
+                    </div>
+                    <div className="rounded overflow-hidden border border-neutral-800 max-h-80 bg-black">
+                      <img
+                        src={selectedAnomaly.image_url}
+                        alt="채증 사진"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
 
                 <div className="text-sm text-neutral-300 leading-relaxed whitespace-pre-wrap font-sans border-l-2 border-red-900 pl-4 py-1">
                   {selectedAnomaly.content}

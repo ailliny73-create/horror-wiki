@@ -1,23 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { useRouter } from 'next/navigation';
-import { ShieldAlert, ArrowLeft, Send, AlertTriangle, ImagePlus } from 'lucide-react';
+import { useRouter, useParams } from 'next/navigation';
+import { ShieldAlert, ArrowLeft, Save, AlertTriangle, ImagePlus } from 'lucide-react';
 import Link from 'next/link';
 
-export default function NewReportPage() {
+export default function EditReportPage() {
   const router = useRouter();
+  const params = useParams();
+  const id = params?.id as string;
+
   const [code, setCode] = useState('');
   const [title, setTitle] = useState('');
   const [dangerLevel, setDangerLevel] = useState('C');
   const [content, setContent] = useState('');
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // 이미지 선택 시 미리보기
+  // 기존 보고서 정보 불러오기
+  useEffect(() => {
+    async function fetchReport() {
+      try {
+        const { data, error } = await supabase
+          .from('anomalies')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) throw error;
+
+        if (data) {
+          setCode(data.code);
+          setTitle(data.title);
+          setDangerLevel(data.danger_level);
+          setContent(data.content);
+          setImageUrl(data.image_url);
+        }
+      } catch (err: any) {
+        setErrorMsg(`[데이터 로드 오류] ${err.message}`);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (id) fetchReport();
+  }, [id]);
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
@@ -26,16 +60,15 @@ export default function NewReportPage() {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setErrorMsg('');
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      let imageUrl = null;
+      let finalImageUrl = imageUrl;
 
-      // 이미지 파일이 있을 경우 Supabase Storage에 업로드
+      // 새 이미지가 선택되었을 때만 추가 업로드
       if (imageFile) {
         const fileExt = imageFile.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2)}.${fileExt}`;
@@ -47,36 +80,43 @@ export default function NewReportPage() {
 
         if (uploadError) throw uploadError;
 
-        // 업로드된 이미지의 Public URL 가져오기
         const { data: publicUrlData } = supabase.storage
           .from('anomaly-images')
           .getPublicUrl(filePath);
 
-        imageUrl = publicUrlData.publicUrl;
+        finalImageUrl = publicUrlData.publicUrl;
       }
 
-      // DB에 보고서 데이터 저장
-      const { error } = await supabase.from('anomalies').insert([
-        {
+      // DB 데이터 업데이트
+      const { error } = await supabase
+        .from('anomalies')
+        .update({
           code: code.trim(),
           title: title.trim(),
           danger_level: dangerLevel,
           content: content.trim(),
-          image_url: imageUrl,
-          author_email: user?.email || 'anonymous@disaster.go.kr',
-        },
-      ]);
+          image_url: finalImageUrl,
+        })
+        .eq('id', id);
 
       if (error) throw error;
 
       router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
-      setErrorMsg(`[등록 실패] ${err.message || '데이터베이스 등록 중 오류가 발생했습니다.'}`);
+      setErrorMsg(`[수정 실패] ${err.message}`);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-neutral-400 font-mono flex items-center justify-center">
+        <p className="text-xs">기밀 데이터 수정을 위한 보안 동기화 중...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono p-6 flex justify-center items-center">
@@ -87,9 +127,9 @@ export default function NewReportPage() {
             <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse" />
             <div>
               <h1 className="text-lg font-bold text-red-500 tracking-wider">
-                특무 보고서 작성 // NEW ANOMALY
+                기밀 보고서 수정 // EDIT ANOMALY
               </h1>
-              <p className="text-xs text-neutral-400">신규 발견된 괴이 현상에 대한 세부 기록을 작성하십시오.</p>
+              <p className="text-xs text-neutral-400">보고서의 세부 정보 및 수칙을 재정의합니다.</p>
             </div>
           </div>
           <Link href="/dashboard" className="flex items-center space-x-1 text-xs text-neutral-400 hover:text-neutral-200 transition">
@@ -105,18 +145,17 @@ export default function NewReportPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleUpdate} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
               <label className="block text-xs font-semibold text-neutral-400 mb-1">
-                식별 코드 (예: ANOMALY-102)
+                식별 코드
               </label>
               <input
                 type="text"
                 required
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
-                placeholder="ANOMALY-XXX"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-red-600 transition"
               />
             </div>
@@ -141,27 +180,25 @@ export default function NewReportPage() {
 
           <div>
             <label className="block text-xs font-semibold text-neutral-400 mb-1">
-              보고서 제목 (코드명/명칭)
+              보고서 제목
             </label>
             <input
               type="text"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: 붉은 안개 속의 심야 가로등"
               className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-sm text-neutral-200 focus:outline-none focus:border-red-600 transition"
             />
           </div>
 
-          {/* 이미지 채증 파일 업로드 */}
           <div>
             <label className="block text-xs font-semibold text-neutral-400 mb-1">
-              현장 채증 사진 (선택)
+              현장 채증 사진 변경
             </label>
             <div className="flex items-center space-x-3">
               <label className="flex items-center space-x-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 px-3 py-2 rounded text-xs text-neutral-300 cursor-pointer transition">
                 <ImagePlus className="w-4 h-4 text-red-500" />
-                <span>이미지 파일 선택</span>
+                <span>새 이미지 선택</span>
                 <input
                   type="file"
                   accept="image/*"
@@ -169,13 +206,10 @@ export default function NewReportPage() {
                   className="hidden"
                 />
               </label>
-              {imageFile && (
-                <span className="text-xs text-neutral-400 truncate max-w-xs">{imageFile.name}</span>
-              )}
             </div>
-            {imagePreview && (
+            {(imagePreview || imageUrl) && (
               <div className="mt-2 relative w-32 h-32 border border-neutral-800 rounded overflow-hidden">
-                <img src={imagePreview} alt="미리보기" className="w-full h-full object-cover" />
+                <img src={imagePreview || imageUrl!} alt="미리보기" className="w-full h-full object-cover" />
               </div>
             )}
           </div>
@@ -189,18 +223,17 @@ export default function NewReportPage() {
               rows={6}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="현장 목격 증언, 오염 경로, 격리 수칙 등의 상세 내용을 작성하십시오."
               className="w-full bg-neutral-950 border border-neutral-800 rounded p-3 text-sm text-neutral-200 focus:outline-none focus:border-red-600 transition resize-none"
             />
           </div>
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={saving}
             className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-semibold py-2.5 px-4 rounded text-sm transition flex items-center justify-center space-x-2 disabled:opacity-50 cursor-pointer"
           >
-            <Send className="w-4 h-4" />
-            <span>{loading ? 'DB 및 사진 저장 중...' : '보고서 최종 등록'}</span>
+            <Save className="w-4 h-4" />
+            <span>{saving ? '수정 사항 반영 중...' : '보고서 수정 완료'}</span>
           </button>
         </form>
 
