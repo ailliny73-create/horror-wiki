@@ -1,142 +1,83 @@
-import Link from 'next/link';
-import { ShieldAlert, FileText, Search, Compass, Archive, PlusCircle, AlertTriangle } from 'lucide-react';
+'use client';
 
-export default function Home() {
+import { ShieldAlert, Lock, ArrowRight, FileSearch, ShieldCheck } from 'lucide-react';
+import Link from 'next/link';
+
+export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col">
-      {/* 상단 네비게이션 바 */}
-      <header className="border-b border-red-900/40 bg-neutral-900/80 backdrop-blur px-6 py-4 flex items-center justify-between sticky top-0 z-50">
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col justify-between p-6 md:p-12">
+      
+      {/* 상단 로고 헤더 */}
+      <header className="flex justify-between items-center border-b border-neutral-900 pb-6">
         <div className="flex items-center space-x-3">
-          <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse" />
-          <span className="font-bold text-lg tracking-wider text-red-500">
-            괴이대응국 // DISASTER MANAGEMENT
+          <ShieldAlert className="w-8 h-8 text-red-600 animate-pulse" />
+          <span className="text-lg font-bold tracking-widest text-red-500">
+            DISASTER RESPONSE BUREAU
           </span>
         </div>
-        
-        {/* 검색창 */}
-        <div className="relative w-1/3 hidden md:block">
-          <input
-            type="text"
-            placeholder="괴이 식별코드 또는 코드명 검색..."
-            className="w-full bg-neutral-950 border border-neutral-800 rounded px-4 py-1.5 pl-10 text-sm text-neutral-300 focus:outline-none focus:border-red-600 transition"
-          />
-          <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-2.5" />
+        <div className="text-xs text-neutral-500 flex items-center space-x-2">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+          <span>보안 서버 정상 가동 중</span>
         </div>
-
-        <nav className="flex space-x-4 text-sm">
-          <Link href="/login" className="hover:text-red-400 transition">
-            [인증 접속]
-          </Link>
-        </nav>
       </header>
 
-      {/* 메인 레이아웃 */}
-      <main className="flex-1 max-w-7xl w-full mx-auto p-6 grid grid-cols-1 md:grid-cols-4 gap-6">
-        
-        {/* 사이드바 메뉴 */}
-        <aside className="md:col-span-1 space-y-6">
-          <div className="bg-neutral-900/60 border border-neutral-800 rounded p-4">
-            <h2 className="text-xs text-neutral-500 uppercase tracking-widest mb-3 font-semibold">
-              // SYSTEM MENU
-            </h2>
-            <ul className="space-y-2 text-sm">
-              <li>
-                <Link href="/docs" className="flex items-center space-x-2 text-neutral-300 hover:text-red-400 p-2 rounded hover:bg-neutral-800/50">
-                  <FileText className="w-4 h-4 text-red-500" />
-                  <span>괴이 문서 보관소</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/expeditions" className="flex items-center space-x-2 text-neutral-300 hover:text-red-400 p-2 rounded hover:bg-neutral-800/50">
-                  <Compass className="w-4 h-4 text-amber-500" />
-                  <span>현장 탐사 기록</span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/evidence" className="flex items-center space-x-2 text-neutral-300 hover:text-red-400 p-2 rounded hover:bg-neutral-800/50">
-                  <Archive className="w-4 h-4 text-blue-500" />
-                  <span>증거물 아카이브</span>
-                </Link>
-              </li>
-            </ul>
-          </div>
+      {/* 중앙 메인 타이틀 및 접속 버튼 */}
+      <main className="max-w-4xl mx-auto text-center space-y-8 my-auto py-12">
+        <div className="inline-flex items-center space-x-2 bg-red-950/40 border border-red-900/60 px-4 py-1.5 rounded-full text-xs text-red-400">
+          <Lock className="w-3.5 h-3.5" />
+          <span>대한민국 국가안보 특무 기밀 구역</span>
+        </div>
 
-          {/* 작성 버튼 박스 */}
-          <div className="bg-neutral-900/60 border border-red-900/30 rounded p-4 text-center">
-            <p className="text-xs text-neutral-400 mb-3">
-              신규 특무 현장 보고서 작성 권한 활성화됨
-            </p>
-            <button className="w-full bg-red-950 hover:bg-red-900 text-red-200 border border-red-700 font-semibold py-2 px-4 rounded text-sm flex items-center justify-center space-x-2 transition">
-              <PlusCircle className="w-4 h-4" />
-              <span>새 보고서 작성</span>
-            </button>
-          </div>
-        </aside>
+        <h1 className="text-3xl md:text-5xl font-black text-neutral-100 tracking-tight leading-tight">
+          초자연적 괴이 현상 통합 관리 및<br />
+          <span className="text-red-600">특무 기밀 보고서 보관소</span>
+        </h1>
 
-        {/* 대시보드 (메인 콘텐츠) */}
-        <section className="md:col-span-3 space-y-6">
-          
-          {/* 경고 배너 */}
-          <div className="bg-red-950/30 border border-red-800/50 rounded p-4 flex items-start space-x-3">
-            <AlertTriangle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
-            <div>
-              <h3 className="text-sm font-bold text-red-400">긴급 전파 사항</h3>
-              <p className="text-xs text-neutral-400 mt-1">
-                야간 현장 활동 시 단독 행동을 금하며, 표준 정신 오염 방지 수칙을 엄수하십시오.
-              </p>
-            </div>
-          </div>
+        <p className="text-neutral-400 text-xs md:text-sm max-w-2xl mx-auto leading-relaxed">
+          본 시스템은 식별된 이상 현상(Anomalies)의 기록, 격리 수칙, 현장 대응 요원의 보고서를 기밀 관리합니다.
+          인가되지 않은 민간인의 무단 접속 및 유출 시 법적 처벌 조치됩니다.
+        </p>
 
-          {/* 최근 문서 리스트 */}
-          <div className="bg-neutral-900/60 border border-neutral-800 rounded p-5">
-            <h2 className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-4 flex items-center space-x-2">
-              <span className="w-2 h-2 bg-red-600 rounded-full inline-block"></span>
-              <span>최근 업데이트된 괴이 문서</span>
-            </h2>
-
-            <div className="space-y-3">
-              {/* 괴이 문서 1 */}
-              <div className="border border-neutral-800 hover:border-red-900/50 bg-neutral-950 p-4 rounded transition group cursor-pointer">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-red-500 border border-red-950 bg-red-950/40 px-2 py-0.5 rounded">
-                    위험등급: 극심 (S)
-                  </span>
-                  <span className="text-xs text-neutral-500">2026.07.20 14:20</span>
-                </div>
-                <h3 className="text-base font-bold text-neutral-200 group-hover:text-red-400 mt-2">
-                  [ANOMALY-049] 지하철 3호선 심야 회차선 잔류 현상
-                </h3>
-                <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
-                  막차 운행 종료 후 회차선에 진입한 열차 내부에서 승객 형상의 그림자가 다수 목격됨. 승무원 접촉 시 기억 소실 발생...
-                </p>
-              </div>
-
-              {/* 괴이 문서 2 */}
-              <div className="border border-neutral-800 hover:border-amber-900/50 bg-neutral-950 p-4 rounded transition group cursor-pointer">
-                <div className="flex justify-between items-start">
-                  <span className="text-xs font-semibold text-amber-500 border border-amber-950 bg-amber-950/40 px-2 py-0.5 rounded">
-                    위험등급: 경계 (B)
-                  </span>
-                  <span className="text-xs text-neutral-500">2026.07.19 21:05</span>
-                </div>
-                <h3 className="text-base font-bold text-neutral-200 group-hover:text-amber-400 mt-2">
-                  [LOG-102] 옥상 정원 비치파라솔 탐사 보고서
-                </h3>
-                <p className="text-xs text-neutral-400 mt-1 line-clamp-2">
-                  비 오는 날 해당 위치에서 우산을 펴지 않고 서 있는 대상을 관찰한 기록. 대상과의 대화는 금지됨...
-                </p>
-              </div>
-            </div>
-          </div>
-
-        </section>
+        {/* 핵심 [요원 인증 접속] 버튼 */}
+        <div className="pt-4 flex justify-center">
+          <Link
+            href="/login"
+            className="group relative inline-flex items-center space-x-3 bg-red-900 hover:bg-red-800 text-red-100 font-bold px-8 py-4 rounded-lg text-sm border border-red-700 shadow-lg shadow-red-950/50 transition-all hover:scale-105"
+          >
+            <ShieldCheck className="w-5 h-5 text-red-300" />
+            <span>요원 인증 및 통합 보관소 접속</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Link>
+        </div>
       </main>
 
-      {/* 푸터 */}
-      <footer className="border-t border-neutral-800 bg-neutral-950 px-6 py-4 text-center text-xs text-neutral-600">
-        <p>© DISASTER MANAGEMENT BUREAU. ALL RIGHTS RESERVED.</p>
-        <p className="mt-1">허가받지 않은 민간인의 접근 및 정보 유출을 금합니다.</p>
+      {/* 하단 특징 소개 3칸 */}
+      <footer className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-neutral-900 pt-6 max-w-5xl mx-auto w-full text-xs">
+        <div className="p-4 bg-neutral-900/40 border border-neutral-800/60 rounded flex items-start space-x-3">
+          <FileSearch className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-neutral-200">실시간 보고서 열람</h3>
+            <p className="text-neutral-500 text-[11px] mt-1">현장에서 수집된 괴이 현상 보고서를 등급별로 즉시 확인합니다.</p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-neutral-900/40 border border-neutral-800/60 rounded flex items-start space-x-3">
+          <ShieldAlert className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-neutral-200">격리 및 대응 수칙</h3>
+            <p className="text-neutral-500 text-[11px] mt-1">위험 등급(S/A/B/C)에 따른 현장 대원의 즉각적인 대응 수칙을 수립합니다.</p>
+          </div>
+        </div>
+
+        <div className="p-4 bg-neutral-900/40 border border-neutral-800/60 rounded flex items-start space-x-3">
+          <Lock className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <h3 className="font-semibold text-neutral-200">256-Bit 기밀 암호화</h3>
+            <p className="text-neutral-500 text-[11px] mt-1">Supabase Auth 연동을 통한 철저한 대원 식별 및 보안을 제공합니다.</p>
+          </div>
+        </div>
       </footer>
+
     </div>
   );
 }
