@@ -4,34 +4,44 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShieldAlert, KeyRound, User, ArrowRight, UserPlus } from 'lucide-react';
+import { UserPlus, User, KeyRound, ArrowRight, ArrowLeft } from 'lucide-react';
 
-export default function LoginPage() {
+export default function SignUpPage() {
   const [nickname, setNickname] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const router = useRouter();
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMsg('');
 
-    // 가입할 때와 100% 동일한 변환 방식 적용
+    // 공백 제거 및 소문자 변환
     const cleanNickname = nickname.trim().toLowerCase();
+    // 가상 이메일 생성 (@gmail.com)
     const fakeEmail = `${cleanNickname}@gmail.com`;
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signUp({
       email: fakeEmail,
       password,
+      options: {
+        data: {
+          nickname: nickname.trim(),
+        },
+      },
     });
 
     if (error) {
-      console.error('Login error detail:', error.message);
-      setErrorMsg('인증 실패: 닉네임 또는 보안 암호를 확인하십시오.');
+      if (error.message.includes('already registered')) {
+        setErrorMsg('이미 존재하는 요원 닉네임입니다.');
+      } else {
+        setErrorMsg('요원 등록 실패: ' + error.message);
+      }
       setLoading(false);
     } else {
+      alert(`[${nickname}] 요원 신규 등록이 완료되었습니다. 즉시 접속합니다.`);
       router.push('/dashboard');
     }
   };
@@ -40,11 +50,11 @@ export default function LoginPage() {
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex items-center justify-center p-6">
       <div className="max-w-md w-full bg-neutral-900/60 border border-neutral-800 p-8 rounded-lg space-y-6">
         <div className="text-center space-y-2">
-          <ShieldAlert className="w-10 h-10 text-red-600 mx-auto animate-pulse" />
+          <UserPlus className="w-10 h-10 text-red-600 mx-auto animate-pulse" />
           <h2 className="text-xl font-bold text-neutral-100 tracking-wider">
-            특무 요원 보안 인증
+            신규 특무 요원 신원 등록
           </h2>
-          <p className="text-xs text-neutral-500">LEVEL 3 이상 인가된 요원 전용 접속 구역</p>
+          <p className="text-xs text-neutral-500">LEVEL 3 보안 승인 계정 생성</p>
         </div>
 
         {errorMsg && (
@@ -53,7 +63,7 @@ export default function LoginPage() {
           </div>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleSignUp} className="space-y-4">
           <div>
             <label className="block text-xs text-neutral-400 mb-1.5">요원 닉네임 / 코드명</label>
             <div className="relative">
@@ -63,19 +73,20 @@ export default function LoginPage() {
                 required
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="등록한 닉네임 입력"
+                placeholder="예: captain 또는 agent007"
                 className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">보안 암호</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">보안 암호 (6자리 이상)</label>
             <div className="relative">
               <KeyRound className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
               <input
                 type="password"
                 required
+                minLength={6}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -89,18 +100,18 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6"
           >
-            <span>{loading ? '보안 인증 진행 중...' : '보안 승인 요청'}</span>
+            <span>{loading ? '신원 등록 중...' : '신원 등록 요청'}</span>
             <ArrowRight className="w-4 h-4" />
           </button>
         </form>
 
         <div className="pt-2 text-center border-t border-neutral-900">
           <Link
-            href="/signup"
-            className="text-xs text-neutral-500 hover:text-red-400 inline-flex items-center space-x-1.5 transition-colors"
+            href="/login"
+            className="text-xs text-neutral-500 hover:text-neutral-300 inline-flex items-center space-x-1"
           >
-            <UserPlus className="w-3.5 h-3.5" />
-            <span>신규 요원 계정 발급 신청 (회원가입)</span>
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span>기존 요원 로그인으로 전환</span>
           </Link>
         </div>
       </div>
