@@ -18,12 +18,12 @@ export default function SignUpPage() {
     setLoading(true);
     setErrorMsg('');
 
-    // 공백 제거 및 소문자 변환
+    // 공백 제거 및 무조건 소문자 변환
     const cleanNickname = nickname.trim().toLowerCase();
-    // 가상 이메일 생성 (@gmail.com)
     const fakeEmail = `${cleanNickname}@gmail.com`;
 
-    const { error } = await supabase.auth.signUp({
+    // 1. Supabase 회원 가입 요청
+    const { error: signUpError } = await supabase.auth.signUp({
       email: fakeEmail,
       password,
       options: {
@@ -33,15 +33,27 @@ export default function SignUpPage() {
       },
     });
 
-    if (error) {
-      if (error.message.includes('already registered')) {
+    if (signUpError) {
+      if (signUpError.message.includes('already registered')) {
         setErrorMsg('이미 존재하는 요원 닉네임입니다.');
       } else {
-        setErrorMsg('요원 등록 실패: ' + error.message);
+        setErrorMsg('요원 등록 실패: ' + signUpError.message);
       }
       setLoading(false);
+      return;
+    }
+
+    // 2. 회원가입 직후 자동 로그인 실행 (세션 정상 생성)
+    const { error: loginError } = await supabase.auth.signInWithPassword({
+      email: fakeEmail,
+      password,
+    });
+
+    if (loginError) {
+      setErrorMsg('자동 접속 실패. Supabase에서 Confirm Email 설정을 꺼주세요.');
+      setLoading(false);
     } else {
-      alert(`[${nickname}] 요원 신규 등록이 완료되었습니다. 즉시 접속합니다.`);
+      alert(`[${nickname}] 요원 신규 등록 완료! 시스템에 접속합니다.`);
       router.push('/dashboard');
     }
   };
@@ -98,7 +110,7 @@ export default function SignUpPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6"
+            className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6 cursor-pointer disabled:opacity-50"
           >
             <span>{loading ? '신원 등록 중...' : '신원 등록 요청'}</span>
             <ArrowRight className="w-4 h-4" />

@@ -18,7 +18,7 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg('');
 
-    // 가입할 때와 100% 동일한 변환 방식 적용
+    // 가입 시와 동일하게 소문자 및 공백 제거 처리
     const cleanNickname = nickname.trim().toLowerCase();
     const fakeEmail = `${cleanNickname}@gmail.com`;
 
@@ -87,7 +87,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6"
+            className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6 cursor-pointer disabled:opacity-50"
           >
             <span>{loading ? '보안 인증 진행 중...' : '보안 승인 요청'}</span>
             <ArrowRight className="w-4 h-4" />
