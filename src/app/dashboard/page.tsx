@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, Check, CheckCheck } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -16,6 +16,11 @@ export default function DashboardPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
+  
+  // 🎮 유저 경험치 및 등급 상태
+  const [userExp, setUserExp] = useState<number>(0);
+  const [userLevel, setUserLevel] = useState<number>(5); // 1급 ~ 5급
+  const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
   // 🚨 괴이 404 신호 간섭 상태
@@ -57,10 +62,15 @@ export default function DashboardPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         setCurrentUserId(user.id);
-        setUserNickname(user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원');
+        const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원';
+        setUserNickname(nickname);
+
         if (user.user_metadata?.role === 'ADMIN') {
           setIsAdmin(true);
         }
+
+        // 유저 경험치 프로필 불러오기 (없으면 자동 생성)
+        await fetchUserProfile(user.id, nickname, user.user_metadata?.role === 'ADMIN');
         await fetchNotifications(user.id);
       }
       await fetchReports();
@@ -69,6 +79,95 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // 경험치 기반 등급 계산 함수 (1000: 1급, 600: 2급, 300: 3급, 100: 4급, 0: 5급)
+  const calculateLevel = (exp: number, admin: boolean) => {
+    if (admin) return 1;
+    if (exp >= 1000) return 1;
+    if (exp >= 600) return 2;
+    if (exp >= 300) return 3;
+    if (exp >= 100) return 4;
+    return 5;
+  };
+
+  const fetchUserProfile = async (userId: string, nickname: string, admin: boolean) => {
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    if (data) {
+      const level = calculateLevel(data.exp, admin);
+      setUserExp(data.exp);
+      setUserLevel(level);
+      setIsCheckedInToday(data.last_checkin === todayStr);
+
+      // 등급 변동이 있으면 업데이트
+      if (level !== data.clearance_level && !admin) {
+        await supabase.from('user_profiles').update({ clearance_level: level }).eq('user_id', userId);
+      }
+    } else {
+      // 신규 유저 프로필 생성
+      const initialExp = 0;
+      const initialLevel = admin ? 1 : 5;
+      await supabase.from('user_profiles').insert([
+        {
+          user_id: userId,
+          nickname: nickname,
+          exp: initialExp,
+          clearance_level: initialLevel,
+        },
+      ]);
+      setUserExp(initialExp);
+      setUserLevel(initialLevel);
+    }
+  };
+
+  // 📅 출석 체크 실행 함수
+  const handleCheckIn = async () => {
+    if (!currentUserId || isCheckedInToday) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    const addedExp = 20; // 출석 보상: 20 EXP
+    const newExp = userExp + addedExp;
+    const newLevel = calculateLevel(newExp, isAdmin);
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .update({
+        exp: newExp,
+        clearance_level: newLevel,
+        last_checkin: todayStr,
+      })
+      .eq('user_id', currentUserId);
+
+    if (error) {
+      alert('출석 체크 오류: ' + error.message);
+    } else {
+      setUserExp(newExp);
+      setUserLevel(newLevel);
+      setIsCheckedInToday(true);
+      alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
+    }
+  };
+
+  // 경험치 추가 보상 공통 함수
+  const addExp = async (amount: number) => {
+    if (!currentUserId) return;
+    const newExp = userExp + amount;
+    const newLevel = calculateLevel(newExp, isAdmin);
+
+    await supabase
+      .from('user_profiles')
+      .update({ exp: newExp, clearance_level: newLevel })
+      .eq('user_id', currentUserId);
+
+    setUserExp(newExp);
+    setUserLevel(newLevel);
   };
 
   const fetchNotifications = async (userId: string) => {
@@ -108,6 +207,14 @@ export default function DashboardPage() {
     }
   };
 
+  const maskText = (text: string, requiredLevel: number = 5) => {
+    if (!text) return '';
+    if (userLevel <= requiredLevel) {
+      return text;
+    }
+    return '■'.repeat(Math.min(text.length, 120)) + ' [보안 인가 등급 부족으로 가림 처리됨]';
+  };
+
   const handleOpenDetail = async (report: any) => {
     setSelectedReport(report);
     setEditTitle(report.title);
@@ -134,6 +241,11 @@ export default function DashboardPage() {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
 
+    if (userLevel > (selectedReport.required_level || 5)) {
+      alert('보안 인가 등급이 부족하여 현장 의견을 남길 수 없습니다.');
+      return;
+    }
+
     setCommentLoading(true);
 
     const { error } = await supabase.from('comments').insert([
@@ -148,7 +260,9 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      // 💡 본인이 작성한 글이 아닌 타인의 글에 댓글을 남길 때 알림 전송
+      // 댓글 작성 보상: +5 EXP
+      await addExp(5);
+
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
         await supabase.from('notifications').insert([
           {
@@ -167,11 +281,9 @@ export default function DashboardPage() {
   };
 
   const handleNotificationClick = async (noti: any) => {
-    // 읽음 처리
     await supabase.from('notifications').update({ is_read: true }).eq('id', noti.id);
     if (currentUserId) fetchNotifications(currentUserId);
 
-    // 해당 게시글 열기
     const targetReport = reports.find((r) => r.id === noti.report_id);
     if (targetReport) {
       handleOpenDetail(targetReport);
@@ -242,6 +354,17 @@ export default function DashboardPage() {
 
   const unreadNotiCount = notifications.filter((n) => !n.is_read).length;
 
+  // 다음 계급까지 필요한 EXP 계산
+  const getNextExpTarget = (exp: number) => {
+    if (exp >= 1000) return 1000;
+    if (exp >= 600) return 1000;
+    if (exp >= 300) return 600;
+    if (exp >= 100) return 300;
+    return 100;
+  };
+  const targetExp = getNextExpTarget(userExp);
+  const expProgressPercent = Math.min(Math.round((userExp / targetExp) * 100), 100);
+
   // 통계 계산
   const totalReportsCount = reports.length;
   const highDangerCount = reports.filter(
@@ -282,7 +405,6 @@ export default function DashboardPage() {
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-6 text-center animate-fade-in">
           <div className="max-w-lg space-y-6 border border-red-900/80 bg-red-950/20 p-8 rounded-lg shadow-2xl shadow-red-950/50 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
-            
             <div className="flex justify-center">
               <AlertTriangle className="w-16 h-16 text-red-600 animate-bounce" />
             </div>
@@ -329,7 +451,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 🔔 알림 드롭다운 버튼 */}
+            {/* 🔔 알림 버튼 */}
             <div className="relative">
               <button
                 onClick={() => setShowNotiDropdown(!showNotiDropdown)}
@@ -343,7 +465,7 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {/* 알림 드롭다운 패널 */}
+              {/* 알림 드롭다운 */}
               {showNotiDropdown && (
                 <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
                   <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
@@ -391,7 +513,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 한/영 언어 토글 및 요원 프로필 */}
+          {/* 한/영 언어 토글 및 유저 경험치 프로필 */}
           <div className="space-y-2">
             <button
               onClick={() => setLang(lang === 'kr' ? 'en' : 'kr')}
@@ -404,13 +526,55 @@ export default function DashboardPage() {
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
+            {/* 🎮 요원 프로필 및 EXP 경험치 바 카드 */}
             {userNickname && (
-              <div className="bg-neutral-950 border border-neutral-800 p-3 rounded text-xs space-y-1">
-                <div className="text-[10px] text-neutral-500">Access Identity</div>
-                <div className="flex items-center space-x-2 font-bold">
-                  {isAdmin ? <Shield className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                  <span className={isAdmin ? 'text-yellow-400' : 'text-red-400'}>{userNickname}</span>
+              <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded text-xs space-y-3">
+                <div className="flex justify-between items-center text-[10px] text-neutral-500">
+                  <span>Access Clearance</span>
+                  <span className="text-red-400 font-bold flex items-center space-x-1">
+                    <Award className="w-3 h-3 text-yellow-500" />
+                    <span>보안 {userLevel}급 요원</span>
+                  </span>
                 </div>
+
+                <div className="flex items-center justify-between font-bold border-b border-neutral-900 pb-2">
+                  <div className="flex items-center space-x-1.5">
+                    {isAdmin ? <Shield className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
+                    <span className={isAdmin ? 'text-yellow-400' : 'text-neutral-200'}>{userNickname}</span>
+                  </div>
+                  <span className="text-[10px] text-red-400 flex items-center space-x-0.5">
+                    <Zap className="w-3 h-3" />
+                    <span>{userExp} EXP</span>
+                  </span>
+                </div>
+
+                {/* 경험치 프로그레스 바 */}
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[9px] text-neutral-500">
+                    <span>Target Clearance</span>
+                    <span>{expProgressPercent}%</span>
+                  </div>
+                  <div className="w-full bg-neutral-900 rounded-full h-1.5 overflow-hidden border border-neutral-800">
+                    <div
+                      className="bg-red-600 h-full rounded-full transition-all duration-500"
+                      style={{ width: `${expProgressPercent}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* 📅 일일 출석 체크 버튼 */}
+                <button
+                  onClick={handleCheckIn}
+                  disabled={isCheckedInToday}
+                  className={`w-full text-xs py-2 rounded font-bold border flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
+                    isCheckedInToday
+                      ? 'bg-neutral-900 border-neutral-800 text-neutral-500 cursor-not-allowed'
+                      : 'bg-red-950 hover:bg-red-900 border-red-800 text-red-300 animate-pulse'
+                  }`}
+                >
+                  <CalendarCheck className="w-3.5 h-3.5" />
+                  <span>{isCheckedInToday ? '오늘 출석 완료 (+20 EXP)' : '📅 일일 출석 체크 (+20 EXP)'}</span>
+                </button>
               </div>
             )}
           </div>
@@ -562,72 +726,88 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {filteredReports.map((report) => (
-              <div
-                key={report.id}
-                onClick={() => handleOpenDetail(report)}
-                className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.005] ${
-                  report.is_notice
-                    ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20'
-                    : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
-                }`}
-              >
-                <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
-                  <div className="flex items-center space-x-2">
-                    {report.is_notice ? (
-                      <span className="text-xs px-2.5 py-0.5 rounded bg-red-900 text-yellow-300 font-bold flex items-center space-x-1 animate-pulse">
-                        <Megaphone className="w-3 h-3" />
-                        <span>{t.notice}</span>
+            {filteredReports.map((report) => {
+              const reqLevel = report.required_level || 5;
+              const isRestricted = userLevel > reqLevel;
+
+              return (
+                <div
+                  key={report.id}
+                  onClick={() => handleOpenDetail(report)}
+                  className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.005] ${
+                    report.is_notice
+                      ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20'
+                      : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
+                    <div className="flex items-center space-x-2">
+                      {report.is_notice ? (
+                        <span className="text-xs px-2.5 py-0.5 rounded bg-red-900 text-yellow-300 font-bold flex items-center space-x-1 animate-pulse">
+                          <Megaphone className="w-3 h-3" />
+                          <span>{t.notice}</span>
+                        </span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
+                          {report.category || t.report}
+                        </span>
+                      )}
+                      
+                      {/* 보안 요구 등급 라벨 */}
+                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold border flex items-center space-x-1 ${
+                        isRestricted 
+                          ? 'bg-red-950 border-red-800 text-red-400' 
+                          : 'bg-neutral-950 border-neutral-800 text-neutral-400'
+                      }`}>
+                        {isRestricted ? <Lock className="w-3 h-3 text-red-500" /> : <Shield className="w-3 h-3 text-yellow-500" />}
+                        <span>보안 {reqLevel}급 인가 필요</span>
                       </span>
-                    ) : (
-                      <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
-                        {report.category || t.report}
+
+                      <h3 className="text-base font-bold text-neutral-100">{report.title}</h3>
+                    </div>
+
+                    {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
+                      <span className="bg-red-950/80 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
+                        {report.danger_level}
                       </span>
                     )}
-                    <h3 className="text-base font-bold text-neutral-100">{report.title}</h3>
                   </div>
 
-                  {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
-                    <span className="bg-red-950/80 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
-                      {report.danger_level}
-                    </span>
+                  {report.location && report.location !== '자유 게시판' && (
+                    <div className="text-xs text-neutral-400 flex items-center space-x-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-neutral-500" />
+                      <span>{t.location}: {maskText(report.location, reqLevel)}</span>
+                    </div>
                   )}
-                </div>
 
-                {report.location && report.location !== '자유 게시판' && (
-                  <div className="text-xs text-neutral-400 flex items-center space-x-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-neutral-500" />
-                    <span>{t.location}: {report.location}</span>
+                  <p className={`text-xs leading-relaxed line-clamp-2 ${isRestricted ? 'text-red-400/80 font-mono tracking-widest' : 'text-neutral-400'}`}>
+                    {maskText(report.content, reqLevel)}
+                  </p>
+
+                  {report.tags && report.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {report.tags.map((tag: string, idx: number) => (
+                        <span
+                          key={idx}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTag(tag);
+                          }}
+                          className="text-[10px] bg-neutral-950 hover:bg-red-950 text-neutral-400 hover:text-red-300 border border-neutral-800 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                        >
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
+                    <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
+                    <span>{new Date(report.created_at).toLocaleString()}</span>
                   </div>
-                )}
-
-                <p className="text-xs text-neutral-400 line-clamp-2 leading-relaxed">
-                  {report.content}
-                </p>
-
-                {report.tags && report.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {report.tags.map((tag: string, idx: number) => (
-                      <span
-                        key={idx}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTag(tag);
-                        }}
-                        className="text-[10px] bg-neutral-950 hover:bg-red-950 text-neutral-400 hover:text-red-300 border border-neutral-800 px-2 py-0.5 rounded cursor-pointer transition-colors"
-                      >
-                        #{tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
-                  <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
-                  <span>{new Date(report.created_at).toLocaleString()}</span>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </main>
@@ -727,15 +907,26 @@ export default function DashboardPage() {
                   {selectedReport.location && selectedReport.location !== '자유 게시판' && (
                     <div className="text-xs text-neutral-400 flex items-center space-x-1">
                       <MapPin className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>{t.location}: {selectedReport.location}</span>
+                      <span>{t.location}: {maskText(selectedReport.location, selectedReport.required_level || 5)}</span>
                     </div>
                   )}
 
-                  <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                    {selectedReport.content}
-                  </div>
+                  {/* 🔒 모달 내 기밀 본문 마스킹 처리 */}
+                  {userLevel > (selectedReport.required_level || 5) ? (
+                    <div className="bg-red-950/30 border border-red-900/80 p-5 rounded space-y-3 text-center">
+                      <EyeOff className="w-8 h-8 text-red-500 mx-auto animate-pulse" />
+                      <p className="text-xs text-red-300 font-bold">{t.restricted}</p>
+                      <div className="bg-neutral-950 p-3 rounded text-[11px] font-mono text-red-500/60 break-all select-none">
+                        {maskText(selectedReport.content, selectedReport.required_level || 5)}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                      {selectedReport.content}
+                    </div>
+                  )}
 
-                  {selectedReport.image_url && (
+                  {selectedReport.image_url && userLevel <= (selectedReport.required_level || 5) && (
                     <div className="space-y-1">
                       <span className="text-[11px] text-neutral-500">Image Attachment:</span>
                       <img
@@ -779,24 +970,30 @@ export default function DashboardPage() {
                     <span>{t.comments} ({comments.length})</span>
                   </div>
 
-                  <form onSubmit={handleAddComment} className="flex gap-2">
-                    <input
-                      type="text"
-                      required
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      placeholder={t.commentPlaceholder}
-                      className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
-                    />
-                    <button
-                      type="submit"
-                      disabled={commentLoading}
-                      className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50"
-                    >
-                      {commentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                      <span>{t.send}</span>
-                    </button>
-                  </form>
+                  {userLevel <= (selectedReport.required_level || 5) ? (
+                    <form onSubmit={handleAddComment} className="flex gap-2">
+                      <input
+                        type="text"
+                        required
+                        value={newComment}
+                        onChange={(e) => setNewComment(e.target.value)}
+                        placeholder={t.commentPlaceholder}
+                        className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                      />
+                      <button
+                        type="submit"
+                        disabled={commentLoading}
+                        className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50"
+                      >
+                        {commentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                        <span>{t.send} (+5 EXP)</span>
+                      </button>
+                    </form>
+                  ) : (
+                    <div className="text-[11px] text-red-500 bg-red-950/20 border border-red-900/50 p-2.5 rounded text-center">
+                      보안 인가 등급이 부족하여 현장 의견을 남길 수 없습니다.
+                    </div>
+                  )}
 
                   <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
                     {comments.length === 0 ? (
@@ -825,7 +1022,9 @@ export default function DashboardPage() {
                               )}
                             </div>
                           </div>
-                          <p className="text-neutral-300 leading-relaxed break-all">{comment.content}</p>
+                          <p className="text-neutral-300 leading-relaxed break-all">
+                            {userLevel <= (selectedReport.required_level || 5) ? comment.content : maskText(comment.content, selectedReport.required_level || 5)}
+                          </p>
                         </div>
                       ))
                     )}
