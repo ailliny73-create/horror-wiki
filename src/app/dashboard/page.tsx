@@ -135,45 +135,36 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [출석 체크 EXP 안전 누적]
   const handleCheckIn = async () => {
     if (!currentUserId || isCheckedInToday) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const addedExp = 20;
-    const newExp = userExp + addedExp;
-    const newLevel = calculateLevel(newExp, isAdmin);
 
-    const { error } = await supabase
-      .from('user_profiles')
-      .update({
-        exp: newExp,
-        clearance_level: newLevel,
-        last_checkin: todayStr,
-      })
-      .eq('user_id', currentUserId);
+    // 1. RPC 함수로 DB 경험치 누적
+    const { error: rpcError } = await supabase.rpc('add_user_exp', {
+      target_user_id: currentUserId,
+      exp_to_add: addedExp,
+    });
 
-    if (error) {
-      alert('출석 체크 오류: ' + error.message);
-    } else {
-      setUserExp(newExp);
-      setUserLevel(newLevel);
-      setIsCheckedInToday(true);
-      alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
+    if (rpcError) {
+      alert('출석 체크 오류: ' + rpcError.message);
+      return;
     }
-  };
 
-  const addExp = async (amount: number) => {
-    if (!currentUserId) return;
-    const newExp = userExp + amount;
-    const newLevel = calculateLevel(newExp, isAdmin);
-
+    // 2. 출석 날짜 기록
     await supabase
       .from('user_profiles')
-      .update({ exp: newExp, clearance_level: newLevel })
+      .update({ last_checkin: todayStr })
       .eq('user_id', currentUserId);
 
+    // 3. UI 상태 업데이트
+    const newExp = userExp + addedExp;
     setUserExp(newExp);
-    setUserLevel(newLevel);
+    setUserLevel(calculateLevel(newExp, isAdmin));
+    setIsCheckedInToday(true);
+    alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
   };
 
   const fetchNotifications = async (userId: string) => {
@@ -248,7 +239,6 @@ export default function DashboardPage() {
     await fetchComments(report.id);
   };
 
-  // 🌐 상세보기 모달 전용 한국어 번역 토글
   const handleToggleModalTranslate = async () => {
     if (!selectedReport) return;
 
@@ -269,7 +259,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 🌐 게시글 목록 전체 한국어 번역 토글
   const handleToggleListTranslate = async () => {
     if (!isListTranslated) {
       if (Object.keys(translatedMap).length === 0) {
@@ -307,6 +296,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [댓글 작성 EXP (+5) 안전 누적]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -318,6 +308,7 @@ export default function DashboardPage() {
 
     setCommentLoading(true);
 
+    // 1. 댓글 DB 추가
     const { error } = await supabase.from('comments').insert([
       {
         report_id: selectedReport.id,
@@ -330,7 +321,16 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      await addExp(5);
+      // 2. RPC 함수로 +5 EXP 안전 누적
+      if (currentUserId) {
+        await supabase.rpc('add_user_exp', {
+          target_user_id: currentUserId,
+          exp_to_add: 5,
+        });
+        const newExp = userExp + 5;
+        setUserExp(newExp);
+        setUserLevel(calculateLevel(newExp, isAdmin));
+      }
 
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
         await supabase.from('notifications').insert([
@@ -804,7 +804,6 @@ export default function DashboardPage() {
               const reqLevel = report.required_level || 5;
               const isRestricted = userLevel > reqLevel;
 
-              // 목록 번역 적용 여부에 따른 제목과 내용
               const displayTitle = (isListTranslated && translatedMap[report.id]?.title) 
                 ? translatedMap[report.id].title 
                 : report.title;
