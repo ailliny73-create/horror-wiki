@@ -67,7 +67,7 @@ export default function DashboardPage() {
   // 댓글 및 답글 상태
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
-  const [replyTargetId, setReplyTargetId] = useState<string | null>(null); // 답글 작성 대상 댓글 ID
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
 
@@ -346,7 +346,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💬 [댓글 작성]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -364,7 +363,7 @@ export default function DashboardPage() {
         user_id: currentUserId,
         author_nickname: userNickname,
         content: newComment.trim(),
-        parent_id: null, // 최상위 댓글
+        parent_id: null,
       },
     ]);
 
@@ -398,7 +397,6 @@ export default function DashboardPage() {
     setCommentLoading(false);
   };
 
-  // 💬 [답글(대댓글) 작성]
   const handleAddReply = async (parentId: string) => {
     if (!replyText.trim() || !selectedReport || commentLoading) return;
 
@@ -410,23 +408,13 @@ export default function DashboardPage() {
         user_id: currentUserId,
         author_nickname: userNickname,
         content: replyText.trim(),
-        parent_id: parentId, // 부모 댓글 ID 연결
+        parent_id: parentId,
       },
     ]);
 
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      if (currentUserId) {
-        await supabase.rpc('add_user_exp', {
-          target_user_id: currentUserId,
-          exp_to_add: 5,
-        });
-        const newExp = userExp + 5;
-        setUserExp(newExp);
-        setUserLevel(calculateLevel(newExp, isAdmin));
-      }
-
       setReplyText('');
       setReplyTargetId(null);
       await fetchComments(selectedReport.id);
@@ -556,12 +544,11 @@ export default function DashboardPage() {
     return true;
   });
 
-  // 댓글 트리 구조 분리 (최상위 댓글 & 답글)
   const rootComments = comments.filter((c) => !c.parent_id);
   const getReplies = (parentId: string) => comments.filter((c) => c.parent_id === parentId);
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col md:flex-row">
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col md:flex-row overflow-x-hidden">
       
       {/* 🚨 404 괴이 신호 간섭 연출 모달 */}
       {showFake404 && (
@@ -613,7 +600,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 🔔 알림 버튼 */}
+            {/* 🔔 알림 버튼 & 모바일 반응형 화면 고정 드롭다운 */}
             <div className="relative">
               <button
                 onClick={() => setShowNotiDropdown(!showNotiDropdown)}
@@ -627,8 +614,9 @@ export default function DashboardPage() {
                 )}
               </button>
 
+              {/* 💡 [수정] 모달 너비 고정 적용으로 화면 왜곡/확장 현상 완전 차단 */}
               {showNotiDropdown && (
-                <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
+                <div className="absolute left-0 right-auto md:left-auto md:right-0 mt-2 w-72 max-w-[calc(100vw-2.5rem)] bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
                   <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
                     <span className="text-xs font-bold text-neutral-200">현장 신호 알림</span>
                     {unreadNotiCount > 0 && (
@@ -1221,7 +1209,6 @@ export default function DashboardPage() {
                     <span>{t.comments} ({comments.length})</span>
                   </div>
 
-                  {/* 최상위 댓글 작성 폼 */}
                   {userLevel <= (selectedReport.required_level || 5) ? (
                     <form onSubmit={handleAddComment} className="flex gap-2">
                       <input
@@ -1247,7 +1234,6 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* 댓글 스레드 목록 */}
                   <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                     {rootComments.length === 0 ? (
                       <div className="text-center text-[11px] text-neutral-600 py-4">
@@ -1259,7 +1245,6 @@ export default function DashboardPage() {
 
                         return (
                           <div key={comment.id} className="space-y-2">
-                            {/* 부모 댓글 카드 */}
                             <div className="bg-neutral-950 border border-neutral-800/80 p-3 rounded space-y-1.5 text-xs">
                               <div className="flex justify-between items-center">
                                 <span className="font-bold text-red-400">{comment.author_nickname}</span>
@@ -1281,7 +1266,6 @@ export default function DashboardPage() {
                                 {userLevel <= (selectedReport.required_level || 5) ? comment.content : maskText(comment.content, selectedReport.required_level || 5)}
                               </p>
 
-                              {/* 답글 달기 버튼 */}
                               {userLevel <= (selectedReport.required_level || 5) && (
                                 <div className="pt-1 flex justify-end">
                                   <button
@@ -1302,7 +1286,6 @@ export default function DashboardPage() {
                               )}
                             </div>
 
-                            {/* 답글 입력 폼 */}
                             {replyTargetId === comment.id && (
                               <div className="pl-6 flex gap-2 pt-1">
                                 <CornerDownRight className="w-4 h-4 text-red-500 shrink-0 mt-2" />
@@ -1319,12 +1302,11 @@ export default function DashboardPage() {
                                   disabled={commentLoading || !replyText.trim()}
                                   className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-xs px-3 py-1.5 rounded font-bold cursor-pointer disabled:opacity-50 shrink-0"
                                 >
-                                  {commentLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '답글 (+5 EXP)'}
+                                  {commentLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '답글 작성'}
                                 </button>
                               </div>
                             )}
 
-                            {/* 자식 답글들 (들여쓰기 연출) */}
                             {replies.length > 0 && (
                               <div className="pl-6 space-y-2 border-l border-neutral-800 ml-2">
                                 {replies.map((reply) => (
