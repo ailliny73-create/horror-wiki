@@ -241,25 +241,26 @@ export default function DashboardPage() {
         (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
       ).length;
 
-      let milestone = 0;
-      if (hazardReportsCount >= 50) {
-        milestone = Math.floor(hazardReportsCount / 50) * 50;
-      } else if (hazardReportsCount >= 10) {
-        milestone = 10;
-      }
+      // 💡 [수정 2] 정확히 10건, 50건, 100건, 150건 ... 에 도달한 그 순간만 404 모달 발동!
+      // (11건, 51건 등 지정 숫자를 넘어가면 절대 다시 나오지 않음)
+      const validMilestones = [10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
+      
+      if (validMilestones.includes(hazardReportsCount)) {
+        const milestoneKey = `anomaly_404_shown_${hazardReportsCount}`;
+        
+        if (!sessionStorage.getItem(milestoneKey)) {
+          setCurrentMilestone(hazardReportsCount);
+          setShowFake404(true);
+          sessionStorage.setItem(milestoneKey, 'true');
 
-      if (milestone > 0 && !sessionStorage.getItem(`anomaly_404_shown_${milestone}`)) {
-        setCurrentMilestone(milestone);
-        setShowFake404(true);
-        sessionStorage.setItem(`anomaly_404_shown_${milestone}`, 'true');
-
-        setTimeout(() => {
-          setIsRestoring(true);
           setTimeout(() => {
-            setShowFake404(false);
-            setIsRestoring(false);
-          }, 1200);
-        }, 3500);
+            setIsRestoring(true);
+            setTimeout(() => {
+              setShowFake404(false);
+              setIsRestoring(false);
+            }, 1200);
+          }, 3500);
+        }
       }
     }
   };
@@ -571,7 +572,7 @@ export default function DashboardPage() {
             <div className="bg-neutral-950 border border-red-900/40 p-4 rounded text-left text-xs text-red-300/90 leading-relaxed space-y-2">
               <p className="font-bold text-yellow-500">⚠️ [사령부 자동 감지 로그]</p>
               <p>
-                "축적된 위험 보고서 데이터가 특수 임계치(<span className="font-extrabold text-red-400">{currentMilestone}건 이상</span>)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
+                "축적된 위험 보고서 데이터가 특수 임계치(<span className="font-extrabold text-red-400">{currentMilestone}건 달성</span>)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
               </p>
               <p className="text-[11px] text-neutral-400 italic">
                 - 수신된 수수께끼 음성: "우리를 더 많이 기억할수록... 문은 더 빨리 열린다..."
@@ -600,65 +601,18 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 🔔 알림 버튼 & 우측 정렬 팝업 (짤림 방지 완벽 반영) */}
-            <div className="relative">
-              <button
-                onClick={() => setShowNotiDropdown(!showNotiDropdown)}
-                className="relative p-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 rounded text-neutral-300 transition-colors cursor-pointer"
-              >
-                <Bell className="w-4 h-4 text-neutral-400" />
-                {unreadNotiCount > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
-                    {unreadNotiCount}
-                  </span>
-                )}
-              </button>
-
-              {showNotiDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-[100] p-3 space-y-2">
-                  <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
-                    <span className="text-xs font-bold text-neutral-200">현장 신호 알림</span>
-                    {unreadNotiCount > 0 && (
-                      <button
-                        onClick={handleMarkAllRead}
-                        className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1 cursor-pointer"
-                      >
-                        <CheckCheck className="w-3 h-3" />
-                        <span>모두 읽음</span>
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
-                    {notifications.length === 0 ? (
-                      <div className="text-[11px] text-neutral-600 text-center py-4">수신된 신호 알림이 없습니다.</div>
-                    ) : (
-                      notifications.map((noti) => (
-                        <div
-                          key={noti.id}
-                          onClick={() => handleNotificationClick(noti)}
-                          className={`p-2.5 rounded border text-xs cursor-pointer transition-colors space-y-1 ${
-                            noti.is_read
-                              ? 'bg-neutral-950/50 border-neutral-900 text-neutral-500'
-                              : 'bg-red-950/40 border-red-900/80 text-neutral-200'
-                          }`}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-red-400 text-[11px]">{noti.sender_nickname} 요원</span>
-                            <span className="text-[9px] text-neutral-600">
-                              {new Date(noti.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                            </span>
-                          </div>
-                          <p className="text-[11px] line-clamp-1">
-                            [{noti.report_title}] 문서에 의견을 남겼습니다.
-                          </p>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+            {/* 🔔 알림 버튼 */}
+            <button
+              onClick={() => setShowNotiDropdown(!showNotiDropdown)}
+              className="relative p-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 rounded text-neutral-300 transition-colors cursor-pointer"
+            >
+              <Bell className="w-4 h-4 text-neutral-400" />
+              {unreadNotiCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
+                  {unreadNotiCount}
+                </span>
               )}
-            </div>
+            </button>
           </div>
 
           <div className="space-y-2">
@@ -834,6 +788,65 @@ export default function DashboardPage() {
           <span>{t.logout}</span>
         </button>
       </aside>
+
+      {/* 🔔 [수정 1] 알림 팝업 모달 (사이드바 외부 fixed 레이아웃으로 짤림 100% 방지) */}
+      {showNotiDropdown && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start justify-center pt-20 sm:pt-24 p-4">
+          <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl p-4 space-y-3 relative">
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
+              <div className="flex items-center space-x-2">
+                <Bell className="w-4 h-4 text-red-500" />
+                <span className="text-xs font-bold text-neutral-200">현장 신호 알림</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                {unreadNotiCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1 cursor-pointer"
+                  >
+                    <CheckCheck className="w-3 h-3" />
+                    <span>모두 읽음</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowNotiDropdown(false)}
+                  className="text-neutral-500 hover:text-white cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto space-y-2 pr-1">
+              {notifications.length === 0 ? (
+                <div className="text-[11px] text-neutral-600 text-center py-6">수신된 신호 알림이 없습니다.</div>
+              ) : (
+                notifications.map((noti) => (
+                  <div
+                    key={noti.id}
+                    onClick={() => handleNotificationClick(noti)}
+                    className={`p-3 rounded border text-xs cursor-pointer transition-colors space-y-1 ${
+                      noti.is_read
+                        ? 'bg-neutral-950/50 border-neutral-900 text-neutral-500'
+                        : 'bg-red-950/40 border-red-900/80 text-neutral-200'
+                    }`}
+                  >
+                    <div className="flex justify-between items-center">
+                      <span className="font-bold text-red-400 text-[11px]">{noti.sender_nickname} 요원</span>
+                      <span className="text-[9px] text-neutral-600">
+                        {new Date(noti.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                    <p className="text-[11px] line-clamp-1">
+                      [{noti.report_title}] 문서에 의견을 남겼습니다.
+                    </p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
