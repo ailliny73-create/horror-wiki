@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, Check, CheckCheck } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -21,6 +21,10 @@ export default function DashboardPage() {
   // 🚨 괴이 404 신호 간섭 상태
   const [showFake404, setShowFake404] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+
+  // 🔔 알림 상태
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [showNotiDropdown, setShowNotiDropdown] = useState(false);
 
   // 검색 및 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -57,12 +61,25 @@ export default function DashboardPage() {
         if (user.user_metadata?.role === 'ADMIN') {
           setIsAdmin(true);
         }
+        await fetchNotifications(user.id);
       }
       await fetchReports();
     } catch (err) {
       console.error('Init error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNotifications = async (userId: string) => {
+    const { data } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setNotifications(data);
     }
   };
 
@@ -76,12 +93,10 @@ export default function DashboardPage() {
     if (!error && data) {
       setReports(data);
 
-      // 💡 게시글이 10개 이상 쌓였을 경우, 404 괴이 신호 간섭 발동 (세션당 1회)
       if (data.length >= 10 && !sessionStorage.getItem('anomaly_404_shown')) {
         setShowFake404(true);
         sessionStorage.setItem('anomaly_404_shown', 'true');
 
-        // 3.5초 후 자동 복구
         setTimeout(() => {
           setIsRestoring(true);
           setTimeout(() => {
@@ -133,10 +148,43 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
+      // 💡 본인이 작성한 글이 아닌 타인의 글에 댓글을 남길 때 알림 전송
+      if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
+        await supabase.from('notifications').insert([
+          {
+            user_id: selectedReport.user_id,
+            sender_nickname: userNickname,
+            report_id: selectedReport.id,
+            report_title: selectedReport.title,
+          },
+        ]);
+      }
+
       setNewComment('');
       await fetchComments(selectedReport.id);
     }
     setCommentLoading(false);
+  };
+
+  const handleNotificationClick = async (noti: any) => {
+    // 읽음 처리
+    await supabase.from('notifications').update({ is_read: true }).eq('id', noti.id);
+    if (currentUserId) fetchNotifications(currentUserId);
+
+    // 해당 게시글 열기
+    const targetReport = reports.find((r) => r.id === noti.report_id);
+    if (targetReport) {
+      handleOpenDetail(targetReport);
+      setShowNotiDropdown(false);
+    } else {
+      alert('해당 기밀 문서가 파기되었거나 존재하지 않습니다.');
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!currentUserId) return;
+    await supabase.from('notifications').update({ is_read: true }).eq('user_id', currentUserId);
+    fetchNotifications(currentUserId);
   };
 
   const handleDeleteComment = async (commentId: string) => {
@@ -191,6 +239,8 @@ export default function DashboardPage() {
     }
     setActionLoading(false);
   };
+
+  const unreadNotiCount = notifications.filter((n) => !n.is_read).length;
 
   // 통계 계산
   const totalReportsCount = reports.length;
@@ -270,11 +320,74 @@ export default function DashboardPage() {
       <aside className="w-full md:w-64 bg-neutral-900/90 border-r border-neutral-800 p-5 flex flex-col justify-between shrink-0 space-y-6">
         <div className="space-y-6">
           {/* 로고 영역 */}
-          <div className="flex items-center space-x-3 pb-4 border-b border-neutral-800">
-            <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0" />
-            <div>
-              <h1 className="text-sm font-extrabold text-red-600 tracking-wider">SPECIAL OPS</h1>
-              <span className="text-[10px] text-neutral-500">Classified Dashboard</span>
+          <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+            <div className="flex items-center space-x-3">
+              <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0" />
+              <div>
+                <h1 className="text-sm font-extrabold text-red-600 tracking-wider">SPECIAL OPS</h1>
+                <span className="text-[10px] text-neutral-500">Classified Dashboard</span>
+              </div>
+            </div>
+
+            {/* 🔔 알림 드롭다운 버튼 */}
+            <div className="relative">
+              <button
+                onClick={() => setShowNotiDropdown(!showNotiDropdown)}
+                className="relative p-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 rounded text-neutral-300 transition-colors cursor-pointer"
+              >
+                <Bell className="w-4 h-4 text-neutral-400" />
+                {unreadNotiCount > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full animate-pulse">
+                    {unreadNotiCount}
+                  </span>
+                )}
+              </button>
+
+              {/* 알림 드롭다운 패널 */}
+              {showNotiDropdown && (
+                <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
+                  <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
+                    <span className="text-xs font-bold text-neutral-200">현장 신호 알림</span>
+                    {unreadNotiCount > 0 && (
+                      <button
+                        onClick={handleMarkAllRead}
+                        className="text-[10px] text-red-400 hover:text-red-300 flex items-center space-x-1 cursor-pointer"
+                      >
+                        <CheckCheck className="w-3 h-3" />
+                        <span>모두 읽음</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                    {notifications.length === 0 ? (
+                      <div className="text-[11px] text-neutral-600 text-center py-4">수신된 신호 알림이 없습니다.</div>
+                    ) : (
+                      notifications.map((noti) => (
+                        <div
+                          key={noti.id}
+                          onClick={() => handleNotificationClick(noti)}
+                          className={`p-2.5 rounded border text-xs cursor-pointer transition-colors space-y-1 ${
+                            noti.is_read
+                              ? 'bg-neutral-950/50 border-neutral-900 text-neutral-500'
+                              : 'bg-red-950/40 border-red-900/80 text-neutral-200'
+                          }`}
+                        >
+                          <div className="flex justify-between items-center">
+                            <span className="font-bold text-red-400 text-[11px]">{noti.sender_nickname} 요원</span>
+                            <span className="text-[9px] text-neutral-600">
+                              {new Date(noti.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
+                          </div>
+                          <p className="text-[11px] line-clamp-1">
+                            [{noti.report_title}] 문서에 의견을 남겼습니다.
+                          </p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
