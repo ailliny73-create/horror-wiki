@@ -264,11 +264,23 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [괄호 단위 부분 검열 지원 maskText 함수 ((가릴단어))]
   const maskText = (text: string, requiredLevel: number = 5) => {
     if (!text) return '';
+
+    // 권한 등급이 만족되면 괄호 기호만 제거 후 원문 반환
     if (userLevel <= requiredLevel) {
-      return text;
+      return text.replace(/\(\((.*?)\)\)/g, '$1');
     }
+
+    // ((가릴단어)) 형태로 감싸져 있다면 해당 단어만 글자 수만큼 ■ 마스킹
+    const hasSpecificMask = /\(\(.*?\)\)/g.test(text);
+
+    if (hasSpecificMask) {
+      return text.replace(/\(\((.*?)\)\)/g, (_, p1) => '■'.repeat(p1.length));
+    }
+
+    // 괄호 태그가 없는데 인가 등급이 부족한 글은 전체 마스킹
     return '■'.repeat(Math.min(text.length, 120)) + ' [보안 인가 등급 부족으로 가림 처리됨]';
   };
 
@@ -518,9 +530,7 @@ export default function DashboardPage() {
 
   const noticeCount = reports.filter((r) => r.is_notice).length;
 
-  // 💡 게시글 목록 필터링 (공지 숨김 옵션 적용)
   const filteredReports = reports.filter((report) => {
-    // 📢 전체 탭 또는 위험보고서/자유게시판 탭에서 공지사항 숨기기 체크 시 공지글 제외
     if (hideNotices && report.is_notice && activeTab !== '공지사항') {
       return false;
     }
@@ -742,7 +752,7 @@ export default function DashboardPage() {
                   onClick={() => {
                     setActiveTab(tab.id as any);
                     if (tab.id === '공지사항') {
-                      setHideNotices(false); // 공지사항 탭 선택 시 자동으로 펼침
+                      setHideNotices(false);
                     }
                   }}
                   className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer ${
@@ -900,7 +910,6 @@ export default function DashboardPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {/* 📢 공지사항 숨기기 토글 버튼 */}
             {noticeCount > 0 && activeTab !== '공지사항' && (
               <button
                 onClick={() => setHideNotices(!hideNotices)}
@@ -1192,19 +1201,10 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {userLevel > (selectedReport.required_level || 5) ? (
-                    <div className="bg-red-950/30 border border-red-900/80 p-5 rounded space-y-3 text-center">
-                      <EyeOff className="w-8 h-8 text-red-500 mx-auto animate-pulse" />
-                      <p className="text-xs text-red-300 font-bold">{t.restricted}</p>
-                      <div className="bg-neutral-950 p-3 rounded text-[11px] font-mono text-red-500/60 break-all select-none">
-                        {maskText(selectedReport.content, selectedReport.required_level || 5)}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                      {isModalTranslated ? modalTranslatedContent : selectedReport.content}
-                    </div>
-                  )}
+                  {/* 💡 괄호 검열 지원 본문 표시 */}
+                  <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                    {maskText(isModalTranslated ? modalTranslatedContent : selectedReport.content, selectedReport.required_level || 5)}
+                  </div>
 
                   {selectedReport.image_url && userLevel <= (selectedReport.required_level || 5) && (
                     <div className="space-y-1">
@@ -1304,7 +1304,7 @@ export default function DashboardPage() {
                                 </div>
                               </div>
                               <p className="text-neutral-300 leading-relaxed break-all">
-                                {userLevel <= (selectedReport.required_level || 5) ? comment.content : maskText(comment.content, selectedReport.required_level || 5)}
+                                {maskText(comment.content, selectedReport.required_level || 5)}
                               </p>
 
                               {userLevel <= (selectedReport.required_level || 5) && (
@@ -1375,7 +1375,7 @@ export default function DashboardPage() {
                                       </div>
                                     </div>
                                     <p className="text-neutral-400 pl-4 leading-relaxed break-all">
-                                      {userLevel <= (selectedReport.required_level || 5) ? reply.content : maskText(reply.content, selectedReport.required_level || 5)}
+                                      {maskText(reply.content, selectedReport.required_level || 5)}
                                     </p>
                                   </div>
                                 ))}
