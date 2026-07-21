@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -37,6 +37,9 @@ export default function DashboardPage() {
   // 🔔 알림 상태
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotiDropdown, setShowNotiDropdown] = useState(false);
+
+  // 📢 공지사항 접기/펼치기 상태
+  const [hideNotices, setHideNotices] = useState(false);
 
   // 검색 및 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -109,7 +112,6 @@ export default function DashboardPage() {
     return 5;
   };
 
-  // 💡 [DB 프로필 조회 및 최신화]
   const fetchUserProfile = async (userId: string, nickname: string, admin: boolean) => {
     const { data } = await supabase
       .from('user_profiles')
@@ -188,7 +190,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [출석 체크 - 원자적 EXP 증가 후 최신 동기화]
   const handleCheckIn = async () => {
     if (!currentUserId || isCheckedInToday) return;
 
@@ -345,7 +346,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [댓글 작성 - 원자적 EXP 증가 후 최신 동기화]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -518,7 +518,13 @@ export default function DashboardPage() {
 
   const noticeCount = reports.filter((r) => r.is_notice).length;
 
+  // 💡 게시글 목록 필터링 (공지 숨김 옵션 적용)
   const filteredReports = reports.filter((report) => {
+    // 📢 전체 탭 또는 위험보고서/자유게시판 탭에서 공지사항 숨기기 체크 시 공지글 제외
+    if (hideNotices && report.is_notice && activeTab !== '공지사항') {
+      return false;
+    }
+
     if (activeTab === '공지사항' && !report.is_notice) return false;
     if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
     if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
@@ -733,7 +739,12 @@ export default function DashboardPage() {
               return (
                 <button
                   key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
+                  onClick={() => {
+                    setActiveTab(tab.id as any);
+                    if (tab.id === '공지사항') {
+                      setHideNotices(false); // 공지사항 탭 선택 시 자동으로 펼침
+                    }
+                  }}
                   className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer ${
                     activeTab === tab.id
                       ? 'bg-red-950/80 border border-red-800/80 text-white'
@@ -846,7 +857,7 @@ export default function DashboardPage() {
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 📊 1. 실시간 현황 통계 위젯 */}
+        {/* 📊 실시간 현황 통계 위젯 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
@@ -881,26 +892,49 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 🌐 게시글 목록 전체 한국어 번역 제어용 바 */}
+        {/* 🌐 게시글 목록 전체 한국어 번역 제어용 바 및 공지 숨기기 토글 스위치 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
           <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
             <Languages className="w-4 h-4 text-red-500" />
             <span>실시간 외국어 게시글 한국어 번역 시스템</span>
           </div>
-          <button
-            onClick={handleToggleListTranslate}
-            disabled={listTranslating}
-            className="w-full sm:w-auto text-xs bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1.5"
-          >
-            {listTranslating ? (
-              <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
-                <span>목록 실시간 번역 중...</span>
-              </>
-            ) : (
-              <span>{isListTranslated ? '↩️ 원문 목록 보기 (Original)' : '🇰🇷 목록 전체 한국어로 번역하기'}</span>
+          
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            {/* 📢 공지사항 숨기기 토글 버튼 */}
+            {noticeCount > 0 && activeTab !== '공지사항' && (
+              <button
+                onClick={() => setHideNotices(!hideNotices)}
+                className="text-xs bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1"
+              >
+                {hideNotices ? (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5 text-yellow-500" />
+                    <span>📢 공지 펼치기 ({noticeCount})</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5 text-neutral-500" />
+                    <span>📢 공지 숨기기</span>
+                  </>
+                )}
+              </button>
             )}
-          </button>
+
+            <button
+              onClick={handleToggleListTranslate}
+              disabled={listTranslating}
+              className="text-xs bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+            >
+              {listTranslating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
+                  <span>목록 실시간 번역 중...</span>
+                </>
+              ) : (
+                <span>{isListTranslated ? '↩️ 원문 목록 보기' : '🇰🇷 목록 전체 번역하기'}</span>
+              )}
+            </button>
+          </div>
         </div>
 
         <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
