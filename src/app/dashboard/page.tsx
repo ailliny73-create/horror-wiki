@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, Image as ImageIcon, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -17,6 +17,10 @@ export default function DashboardPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // 🚨 괴이 404 신호 간섭 상태
+  const [showFake404, setShowFake404] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   // 검색 및 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
@@ -71,6 +75,21 @@ export default function DashboardPage() {
 
     if (!error && data) {
       setReports(data);
+
+      // 💡 게시글이 10개 이상 쌓였을 경우, 404 괴이 신호 간섭 발동 (세션당 1회)
+      if (data.length >= 10 && !sessionStorage.getItem('anomaly_404_shown')) {
+        setShowFake404(true);
+        sessionStorage.setItem('anomaly_404_shown', 'true');
+
+        // 3.5초 후 자동 복구
+        setTimeout(() => {
+          setIsRestoring(true);
+          setTimeout(() => {
+            setShowFake404(false);
+            setIsRestoring(false);
+          }, 1200);
+        }, 3500);
+      }
     }
   };
 
@@ -173,7 +192,7 @@ export default function DashboardPage() {
     setActionLoading(false);
   };
 
-  // 실시간 위험도 통계
+  // 통계 계산
   const totalReportsCount = reports.length;
   const highDangerCount = reports.filter(
     (r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')
@@ -206,45 +225,161 @@ export default function DashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
-        
-        {/* 헤더 */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-neutral-800 pb-4">
-          <div className="flex items-center space-x-3">
-            <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse" />
-            <h1 className="text-xl font-bold text-red-600 tracking-wider">{t.title}</h1>
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col md:flex-row">
+      
+      {/* 🚨 404 괴이 신호 간섭 연출 모달 */}
+      {showFake404 && (
+        <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-6 text-center animate-fade-in">
+          <div className="max-w-lg space-y-6 border border-red-900/80 bg-red-950/20 p-8 rounded-lg shadow-2xl shadow-red-950/50 relative overflow-hidden">
+            <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
+            
+            <div className="flex justify-center">
+              <AlertTriangle className="w-16 h-16 text-red-600 animate-bounce" />
+            </div>
+
+            <div className="space-y-2">
+              <h1 className="text-4xl font-extrabold text-red-600 tracking-widest font-mono">
+                404 NOT FOUND
+              </h1>
+              <p className="text-xs text-red-400 font-bold tracking-wider">
+                [CRITICAL] SIGNAL INTERFERENCE DETECTED
+              </p>
+            </div>
+
+            <div className="bg-neutral-950 border border-red-900/40 p-4 rounded text-left text-xs text-red-300/90 leading-relaxed space-y-2">
+              <p className="font-bold text-yellow-500">⚠️ [사령부 자동 감지 로그]</p>
+              <p>
+                "축적된 기밀 데이터가 특수 임계치(10건 이상)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
+              </p>
+              <p className="text-[11px] text-neutral-400 italic">
+                - 수신된 수수께끼 음성: "우리를 더 많이 기억할수록... 문은 더 빨리 열린다..."
+              </p>
+            </div>
+
+            <div className="flex items-center justify-center space-x-2 text-xs text-neutral-400 pt-2">
+              <RefreshCw className={`w-4 h-4 text-red-500 ${isRestoring ? 'animate-spin' : 'animate-pulse'}`} />
+              <span>
+                {isRestoring ? '긴급 방화벽 가동 및 신호 복구 중...' : '보안 프로토콜 재연결 시도 중 (3초)...'}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 📌 좌측 사이드바 패널 */}
+      <aside className="w-full md:w-64 bg-neutral-900/90 border-r border-neutral-800 p-5 flex flex-col justify-between shrink-0 space-y-6">
+        <div className="space-y-6">
+          {/* 로고 영역 */}
+          <div className="flex items-center space-x-3 pb-4 border-b border-neutral-800">
+            <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0" />
+            <div>
+              <h1 className="text-sm font-extrabold text-red-600 tracking-wider">SPECIAL OPS</h1>
+              <span className="text-[10px] text-neutral-500">Classified Dashboard</span>
+            </div>
           </div>
 
-          <div className="flex items-center space-x-3">
-            {/* ★ 한/영 언어 전환 버튼 */}
+          {/* 한/영 언어 토글 및 요원 프로필 */}
+          <div className="space-y-2">
             <button
               onClick={() => setLang(lang === 'kr' ? 'en' : 'kr')}
-              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-xs px-2.5 py-1.5 rounded flex items-center space-x-1 cursor-pointer font-bold text-neutral-300"
+              className="w-full bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-xs py-2 px-3 rounded flex items-center justify-between cursor-pointer font-bold text-neutral-300 transition-colors"
             >
-              <Globe className="w-3.5 h-3.5 text-red-500" />
-              <span>{lang === 'kr' ? 'EN' : 'KR'}</span>
+              <span className="flex items-center space-x-2">
+                <Globe className="w-3.5 h-3.5 text-red-500" />
+                <span>LANGUAGE</span>
+              </span>
+              <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
             {userNickname && (
-              <div className="bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded text-xs text-neutral-300 flex items-center space-x-2">
-                {isAdmin ? <Shield className="w-4 h-4 text-yellow-500 animate-bounce" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                <span>{isAdmin ? t.commander : t.agent}: <strong className={isAdmin ? 'text-yellow-400 font-bold' : 'text-red-400'}>{userNickname}</strong></span>
+              <div className="bg-neutral-950 border border-neutral-800 p-3 rounded text-xs space-y-1">
+                <div className="text-[10px] text-neutral-500">Access Identity</div>
+                <div className="flex items-center space-x-2 font-bold">
+                  {isAdmin ? <Shield className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
+                  <span className={isAdmin ? 'text-yellow-400' : 'text-red-400'}>{userNickname}</span>
+                </div>
               </div>
             )}
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.push('/login');
-              }}
-              className="bg-neutral-900 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 text-xs px-3 py-1.5 rounded flex items-center space-x-1.5 cursor-pointer"
-            >
-              <LogOut className="w-3.5 h-3.5" />
-              <span>{t.logout}</span>
-            </button>
           </div>
+
+          {/* 새 문서 작성 버튼 */}
+          <button
+            onClick={() => router.push('/new-report')}
+            className="w-full bg-red-900 hover:bg-red-800 text-white text-xs py-3 rounded font-bold border border-red-700 flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-950/50 transition-all hover:scale-[1.02]"
+          >
+            <Plus className="w-4 h-4" />
+            <span>{t.newDocument}</span>
+          </button>
+
+          {/* 탭 내비게이션 메뉴 */}
+          <nav className="space-y-1">
+            <div className="text-[10px] text-neutral-500 px-2 py-1 font-bold">CATEGORIES</div>
+            {[
+              { id: '전체', name: t.all, icon: Activity },
+              { id: '공지사항', name: t.notice, icon: Megaphone },
+              { id: '위험 보고서', name: t.report, icon: AlertCircle },
+              { id: '자유 게시판', name: t.freeBoard, icon: Radio },
+            ].map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer ${
+                    activeTab === tab.id
+                      ? 'bg-red-950/80 border border-red-800/80 text-white'
+                      : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-white'
+                  }`}
+                >
+                  <Icon className="w-4 h-4 text-red-500" />
+                  <span>{tab.name}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* 위험도 필터 */}
+          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && (
+            <div className="space-y-2 pt-2 border-t border-neutral-800">
+              <span className="text-[10px] text-neutral-500 flex items-center space-x-1 font-bold">
+                <Filter className="w-3 h-3 text-red-600" />
+                <span>{t.dangerFilter}</span>
+              </span>
+              <div className="grid grid-cols-2 gap-1.5">
+                {['전체', 'LEVEL 1', 'LEVEL 2', 'LEVEL 3', 'LEVEL 4', 'LEVEL 5'].map((lvl) => (
+                  <button
+                    key={lvl}
+                    onClick={() => setDangerFilter(lvl)}
+                    className={`text-[10px] py-1.5 px-2 rounded cursor-pointer transition-all text-center ${
+                      dangerFilter === lvl
+                        ? 'bg-red-950 border border-red-800 text-red-300 font-bold'
+                        : 'bg-neutral-950 text-neutral-500 hover:text-neutral-300 border border-neutral-900'
+                    }`}
+                  >
+                    {lvl === '전체' ? (lang === 'kr' ? '전체' : 'ALL') : lvl}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* 하단 로그아웃 */}
+        <button
+          onClick={async () => {
+            await supabase.auth.signOut();
+            router.push('/login');
+          }}
+          className="w-full bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-400 text-xs py-2.5 rounded flex items-center justify-center space-x-2 cursor-pointer transition-colors"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+          <span>{t.logout}</span>
+        </button>
+      </aside>
+
+      {/* 📄 우측 메인 콘텐츠 영역 */}
+      <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
+        
         {/* 📊 1. 실시간 현황 통계 위젯 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
@@ -272,7 +407,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 🔍 2. 통합 검색창 및 해시태그 필터 */}
+        {/* 🔍 2. 검색창 및 태그 필터 */}
         <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
           <div className="relative">
             <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
@@ -286,7 +421,7 @@ export default function DashboardPage() {
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-neutral-500 hover:text-white text-xs"
+                className="absolute right-3 top-2.5 text-neutral-500 hover:text-white text-xs cursor-pointer"
               >
                 ✕
               </button>
@@ -298,83 +433,11 @@ export default function DashboardPage() {
               <span className="text-neutral-500">Selected Tag:</span>
               <span className="bg-red-950 border border-red-800 text-red-300 px-2 py-0.5 rounded flex items-center space-x-1">
                 <span>#{selectedTag}</span>
-                <button onClick={() => setSelectedTag(null)} className="hover:text-white">✕</button>
+                <button onClick={() => setSelectedTag(null)} className="hover:text-white cursor-pointer">✕</button>
               </span>
             </div>
           )}
         </div>
-
-        {/* 게시판 탭 & 새 문서 작성 버튼 */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div className="flex items-center space-x-1 bg-neutral-900/80 p-1 rounded-lg border border-neutral-800">
-            <button
-              onClick={() => setActiveTab('전체')}
-              className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer transition-colors ${
-                activeTab === '전체' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              {t.all}
-            </button>
-            <button
-              onClick={() => setActiveTab('공지사항')}
-              className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1 ${
-                activeTab === '공지사항' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Megaphone className="w-3.5 h-3.5 text-yellow-400" />
-              <span>{t.notice}</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('위험 보고서')}
-              className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1 ${
-                activeTab === '위험 보고서' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <AlertCircle className="w-3.5 h-3.5" />
-              <span>{t.report}</span>
-            </button>
-            <button
-              onClick={() => setActiveTab('자유 게시판')}
-              className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1 ${
-                activeTab === '자유 게시판' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              <Radio className="w-3.5 h-3.5" />
-              <span>{t.freeBoard}</span>
-            </button>
-          </div>
-
-          <button
-            onClick={() => router.push('/new-report')}
-            className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2.5 rounded font-bold border border-red-700 flex items-center space-x-1.5 cursor-pointer shadow-lg shadow-red-950/50"
-          >
-            <Plus className="w-4 h-4" />
-            <span>{t.newDocument}</span>
-          </button>
-        </div>
-
-        {/* 위험도 필터 */}
-        {activeTab !== '자유 게시판' && activeTab !== '공지사항' && (
-          <div className="bg-neutral-900/40 border border-neutral-800/80 p-3 rounded-lg flex flex-wrap items-center gap-2">
-            <span className="text-xs text-neutral-500 flex items-center space-x-1 mr-2">
-              <Filter className="w-3.5 h-3.5 text-red-600" />
-              <span>{t.dangerFilter}:</span>
-            </span>
-            {['전체', 'LEVEL 1', 'LEVEL 2', 'LEVEL 3', 'LEVEL 4', 'LEVEL 5'].map((lvl) => (
-              <button
-                key={lvl}
-                onClick={() => setDangerFilter(lvl)}
-                className={`text-[11px] px-2.5 py-1 rounded cursor-pointer transition-all ${
-                  dangerFilter === lvl
-                    ? 'bg-red-950 border border-red-800 text-red-300 font-bold'
-                    : 'bg-neutral-950 text-neutral-500 hover:text-neutral-300 border border-neutral-900'
-                }`}
-              >
-                {lvl === '전체' ? (lang === 'kr' ? '전체' : 'ALL') : lvl}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* 보고서 목록 */}
         {loading ? (
@@ -390,7 +453,7 @@ export default function DashboardPage() {
               <div
                 key={report.id}
                 onClick={() => handleOpenDetail(report)}
-                className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.01] ${
+                className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.005] ${
                   report.is_notice
                     ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20'
                     : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
@@ -454,7 +517,7 @@ export default function DashboardPage() {
             ))}
           </div>
         )}
-      </div>
+      </main>
 
       {/* 상세보기 모달 */}
       {selectedReport && (
