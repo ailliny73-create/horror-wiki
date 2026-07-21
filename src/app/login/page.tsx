@@ -18,7 +18,6 @@ export default function LoginPage() {
     setLoading(true);
     setErrorMsg('');
 
-    // 가입 시와 동일하게 소문자 및 공백 제거 처리
     const cleanNickname = nickname.trim().toLowerCase();
     const fakeEmail = `${cleanNickname}@gmail.com`;
 

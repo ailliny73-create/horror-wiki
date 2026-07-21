@@ -18,11 +18,9 @@ export default function SignUpPage() {
     setLoading(true);
     setErrorMsg('');
 
-    // 공백 제거 및 무조건 소문자 변환
     const cleanNickname = nickname.trim().toLowerCase();
     const fakeEmail = `${cleanNickname}@gmail.com`;
 
-    // 1. Supabase 회원 가입 요청
     const { error: signUpError } = await supabase.auth.signUp({
       email: fakeEmail,
       password,
@@ -43,17 +41,16 @@ export default function SignUpPage() {
       return;
     }
 
-    // 2. 회원가입 직후 자동 로그인 실행 (세션 정상 생성)
     const { error: loginError } = await supabase.auth.signInWithPassword({
       email: fakeEmail,
       password,
     });
 
     if (loginError) {
-      setErrorMsg('자동 접속 실패. Supabase에서 Confirm Email 설정을 꺼주세요.');
+      setErrorMsg('자동 접속 실패: Supabase 대시보드에서 Confirm Email 설정을 비활성화했는지 확인하세요.');
       setLoading(false);
     } else {
-      alert(`[${nickname}] 요원 신규 등록 완료! 시스템에 접속합니다.`);
+      alert(`[${nickname}] 요원 신규 등록이 완료되었습니다.`);
       router.push('/dashboard');
     }
   };
