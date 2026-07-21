@@ -109,6 +109,7 @@ export default function DashboardPage() {
     return 5;
   };
 
+  // 💡 [DB 프로필 조회 및 최신화]
   const fetchUserProfile = async (userId: string, nickname: string, admin: boolean) => {
     const { data } = await supabase
       .from('user_profiles')
@@ -187,6 +188,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [출석 체크 - 원자적 EXP 증가 후 최신 동기화]
   const handleCheckIn = async () => {
     if (!currentUserId || isCheckedInToday) return;
 
@@ -208,10 +210,8 @@ export default function DashboardPage() {
       .update({ last_checkin: todayStr })
       .eq('user_id', currentUserId);
 
-    const newExp = userExp + addedExp;
-    setUserExp(newExp);
-    setUserLevel(calculateLevel(newExp, isAdmin));
     setIsCheckedInToday(true);
+    await fetchUserProfile(currentUserId, userNickname, isAdmin);
     alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
   };
 
@@ -241,8 +241,6 @@ export default function DashboardPage() {
         (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
       ).length;
 
-      // 💡 [수정 2] 정확히 10건, 50건, 100건, 150건 ... 에 도달한 그 순간만 404 모달 발동!
-      // (11건, 51건 등 지정 숫자를 넘어가면 절대 다시 나오지 않음)
       const validMilestones = [10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
       
       if (validMilestones.includes(hazardReportsCount)) {
@@ -347,6 +345,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [댓글 작성 - 원자적 EXP 증가 후 최신 동기화]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -376,9 +375,7 @@ export default function DashboardPage() {
           target_user_id: currentUserId,
           exp_to_add: 5,
         });
-        const newExp = userExp + 5;
-        setUserExp(newExp);
-        setUserLevel(calculateLevel(newExp, isAdmin));
+        await fetchUserProfile(currentUserId, userNickname, isAdmin);
       }
 
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
@@ -601,7 +598,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 🔔 알림 버튼 */}
             <button
               onClick={() => setShowNotiDropdown(!showNotiDropdown)}
               className="relative p-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 rounded text-neutral-300 transition-colors cursor-pointer"
@@ -627,7 +623,6 @@ export default function DashboardPage() {
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
-            {/* ✏️ 유저 계급 및 닉네임 수정 패널 */}
             {userNickname && (
               <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded text-xs space-y-3">
                 <div className="flex justify-between items-center text-[10px] text-neutral-500">
@@ -789,7 +784,7 @@ export default function DashboardPage() {
         </button>
       </aside>
 
-      {/* 🔔 [수정 1] 알림 팝업 모달 (사이드바 외부 fixed 레이아웃으로 짤림 100% 방지) */}
+      {/* 🔔 알림 팝업 모달 */}
       {showNotiDropdown && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start justify-center pt-20 sm:pt-24 p-4">
           <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl p-4 space-y-3 relative">
