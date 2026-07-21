@@ -141,30 +141,43 @@ export default function DashboardPage() {
     }
   };
 
-  // ✏️ [닉네임 변경 처리 함수]
+  // ✏️ [닉네임 변경 처리 함수 - ADMIN 사칭 방지 검증 포함]
   const handleSaveNickname = async () => {
-    if (!newNickname.trim() || !currentUserId) return;
-    if (newNickname.trim() === userNickname) {
+    const trimmed = newNickname.trim();
+    if (!trimmed || !currentUserId) return;
+
+    if (trimmed === userNickname) {
       setIsEditingNickname(false);
+      return;
+    }
+
+    // 🚨 ADMIN 및 사령관/관리자 사칭 키워드 차단
+    const upperNick = trimmed.toUpperCase();
+    const forbiddenKeywords = ['ADMIN', '관리자', '사령관', '최고관리자', '특무사령관'];
+    
+    const isForbidden = forbiddenKeywords.some((keyword) => upperNick.includes(keyword.toUpperCase()));
+
+    if (isForbidden && !isAdmin) {
+      alert('🚫 [보안 경고] "ADMIN" 및 최고 관리자 관련 호칭은 일반 요원이 사용할 수 없습니다.');
       return;
     }
 
     setSavingNickname(true);
     try {
       const { error: authError } = await supabase.auth.updateUser({
-        data: { nickname: newNickname.trim() },
+        data: { nickname: trimmed },
       });
 
       if (authError) throw authError;
 
       const { error: profileError } = await supabase
         .from('user_profiles')
-        .update({ nickname: newNickname.trim() })
+        .update({ nickname: trimmed })
         .eq('user_id', currentUserId);
 
       if (profileError) throw profileError;
 
-      setUserNickname(newNickname.trim());
+      setUserNickname(trimmed);
       setIsEditingNickname(false);
       alert('🔒 요원 호칭(닉네임)이 성공적으로 변경되었습니다!');
     } catch (err: any) {
@@ -795,7 +808,7 @@ export default function DashboardPage() {
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 📊 1. 실시간 현황 통계 위젯 (아이콘 클로징 완료) */}
+        {/* 📊 1. 실시간 현황 통계 위젯 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
