@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -65,12 +65,13 @@ export default function DashboardPage() {
         const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원';
         setUserNickname(nickname);
 
-        if (user.user_metadata?.role === 'ADMIN') {
+        const isUserAdmin = user.user_metadata?.role === 'ADMIN' || nickname === 'ADMIN' || user.email?.startsWith('admin');
+        if (isUserAdmin) {
           setIsAdmin(true);
         }
 
-        // 유저 경험치 프로필 불러오기 (없으면 자동 생성)
-        await fetchUserProfile(user.id, nickname, user.user_metadata?.role === 'ADMIN');
+        // 유저 경험치 프로필 불러오기
+        await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
       }
       await fetchReports();
@@ -81,7 +82,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 경험치 기반 등급 계산 함수 (1000: 1급, 600: 2급, 300: 3급, 100: 4급, 0: 5급)
   const calculateLevel = (exp: number, admin: boolean) => {
     if (admin) return 1;
     if (exp >= 1000) return 1;
@@ -92,7 +92,7 @@ export default function DashboardPage() {
   };
 
   const fetchUserProfile = async (userId: string, nickname: string, admin: boolean) => {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('user_profiles')
       .select('*')
       .eq('user_id', userId)
@@ -106,12 +106,10 @@ export default function DashboardPage() {
       setUserLevel(level);
       setIsCheckedInToday(data.last_checkin === todayStr);
 
-      // 등급 변동이 있으면 업데이트
       if (level !== data.clearance_level && !admin) {
         await supabase.from('user_profiles').update({ clearance_level: level }).eq('user_id', userId);
       }
     } else {
-      // 신규 유저 프로필 생성
       const initialExp = 0;
       const initialLevel = admin ? 1 : 5;
       await supabase.from('user_profiles').insert([
@@ -127,12 +125,11 @@ export default function DashboardPage() {
     }
   };
 
-  // 📅 출석 체크 실행 함수
   const handleCheckIn = async () => {
     if (!currentUserId || isCheckedInToday) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const addedExp = 20; // 출석 보상: 20 EXP
+    const addedExp = 20;
     const newExp = userExp + addedExp;
     const newLevel = calculateLevel(newExp, isAdmin);
 
@@ -155,7 +152,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 경험치 추가 보상 공통 함수
   const addExp = async (amount: number) => {
     if (!currentUserId) return;
     const newExp = userExp + amount;
@@ -260,7 +256,6 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      // 댓글 작성 보상: +5 EXP
       await addExp(5);
 
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
@@ -354,7 +349,6 @@ export default function DashboardPage() {
 
   const unreadNotiCount = notifications.filter((n) => !n.is_read).length;
 
-  // 다음 계급까지 필요한 EXP 계산
   const getNextExpTarget = (exp: number) => {
     if (exp >= 1000) return 1000;
     if (exp >= 600) return 1000;
@@ -513,7 +507,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 한/영 언어 토글 및 유저 경험치 프로필 */}
+          {/* 한/영 언어 토글 및 유저 계급 프로필 */}
           <div className="space-y-2">
             <button
               onClick={() => setLang(lang === 'kr' ? 'en' : 'kr')}
@@ -526,21 +520,21 @@ export default function DashboardPage() {
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
-            {/* 🎮 요원 프로필 및 EXP 경험치 바 카드 */}
+            {/* 👑 ADMIN 전용 계급 표기 적용 영역 */}
             {userNickname && (
               <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded text-xs space-y-3">
                 <div className="flex justify-between items-center text-[10px] text-neutral-500">
                   <span>Access Clearance</span>
-                  <span className="text-red-400 font-bold flex items-center space-x-1">
-                    <Award className="w-3 h-3 text-yellow-500" />
-                    <span>보안 {userLevel}급 요원</span>
+                  <span className={`font-bold flex items-center space-x-1 ${isAdmin ? 'text-yellow-400' : 'text-red-400'}`}>
+                    {isAdmin ? <Crown className="w-3.5 h-3.5 text-yellow-500 animate-pulse" /> : <Award className="w-3 h-3 text-yellow-500" />}
+                    <span>{isAdmin ? '👑 최고 관리자' : `보안 ${userLevel}급 요원`}</span>
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between font-bold border-b border-neutral-900 pb-2">
                   <div className="flex items-center space-x-1.5">
-                    {isAdmin ? <Shield className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                    <span className={isAdmin ? 'text-yellow-400' : 'text-neutral-200'}>{userNickname}</span>
+                    {isAdmin ? <Crown className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
+                    <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>{userNickname}</span>
                   </div>
                   <span className="text-[10px] text-red-400 flex items-center space-x-0.5">
                     <Zap className="w-3 h-3" />
@@ -552,12 +546,12 @@ export default function DashboardPage() {
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] text-neutral-500">
                     <span>Target Clearance</span>
-                    <span>{expProgressPercent}%</span>
+                    <span>{isAdmin ? 'MAX' : `${expProgressPercent}%`}</span>
                   </div>
                   <div className="w-full bg-neutral-900 rounded-full h-1.5 overflow-hidden border border-neutral-800">
                     <div
-                      className="bg-red-600 h-full rounded-full transition-all duration-500"
-                      style={{ width: `${expProgressPercent}%` }}
+                      className={`${isAdmin ? 'bg-yellow-500' : 'bg-red-600'} h-full rounded-full transition-all duration-500`}
+                      style={{ width: `${isAdmin ? 100 : expProgressPercent}%` }}
                     />
                   </div>
                 </div>
@@ -753,7 +747,6 @@ export default function DashboardPage() {
                         </span>
                       )}
                       
-                      {/* 보안 요구 등급 라벨 */}
                       <span className={`text-[10px] px-2 py-0.5 rounded font-bold border flex items-center space-x-1 ${
                         isRestricted 
                           ? 'bg-red-950 border-red-800 text-red-400' 
@@ -911,7 +904,6 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  {/* 🔒 모달 내 기밀 본문 마스킹 처리 */}
                   {userLevel > (selectedReport.required_level || 5) ? (
                     <div className="bg-red-950/30 border border-red-900/80 p-5 rounded space-y-3 text-center">
                       <EyeOff className="w-8 h-8 text-red-500 mx-auto animate-pulse" />
