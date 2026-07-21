@@ -3,316 +3,313 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio, Megaphone, Hash } from 'lucide-react';
+import { ShieldAlert, ArrowLeft, Send, MapPin, AlertCircle, Image as ImageIcon, Tag, Lock, Shield } from 'lucide-react';
 
 export default function NewReportPage() {
   const [title, setTitle] = useState('');
-  const [category, setCategory] = useState('위험 보고서');
-  const [location, setLocation] = useState('');
+  const [category, setCategory] = useState<'위험 보고서' | '자유 게시판'>('위험 보고서');
   const [dangerLevel, setDangerLevel] = useState('LEVEL 1 (경미)');
-  const [tagInput, setTagInput] = useState('');
+  const [location, setLocation] = useState('');
   const [content, setContent] = useState('');
-  const [isNotice, setIsNotice] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [tagsInput, setTagsInput] = useState('');
+  const [requiredLevel, setRequiredLevel] = useState<number>(5); // 기본값: 5급 (누구나 열람)
+  
+  const [imageUrl, setImageUrl] = useState('');
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [userNickname, setUserNickname] = useState('특무 요원');
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
   const router = useRouter();
 
   useEffect(() => {
-    checkAdmin();
+    checkUser();
   }, []);
 
-  const checkAdmin = async () => {
+  const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
-    if (user && user.user_metadata?.role === 'ADMIN') {
-      setIsAdmin(true);
+    if (!user) {
+      alert('접근 권한이 없습니다. 먼저 로그인해 주세요.');
+      router.push('/login');
+      return;
+    }
+    setCurrentUserId(user.id);
+    setUserNickname(user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원');
+  };
+
+  // 이미지 업로드 처리
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setImageFile(file);
+      setImageUrl(URL.createObjectURL(file));
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loading) return;
+    if (!title.trim() || !content.trim()) {
+      alert('제목과 내용을 입력해 주세요.');
+      return;
+    }
 
     setLoading(true);
-    setErrorMsg('');
+    let finalImageUrl = '';
 
     try {
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-
-      if (userError || !user) {
-        setErrorMsg('로그인 세션이 만료되었습니다. 다시 로그인해 주세요.');
-        setLoading(false);
-        return;
-      }
-
-      const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '익명 요원';
-      let uploadedImageUrl = '';
-
+      // 1. 첨부 이미지가 있는 경우 Supabase Storage에 업로드
       if (imageFile) {
+        setUploading(true);
         const fileExt = imageFile.name.split('.').pop();
-        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
         const filePath = `reports/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('report-images')
+          .from('report_images')
           .upload(filePath, imageFile);
 
-        if (!uploadError) {
-          const { data: urlData } = supabase.storage
-            .from('report-images')
+        if (uploadError) {
+          console.error('Image Upload Error:', uploadError);
+        } else {
+          const { data: publicUrlData } = supabase.storage
+            .from('report_images')
             .getPublicUrl(filePath);
-          uploadedImageUrl = urlData.publicUrl;
+          finalImageUrl = publicUrlData.publicUrl;
         }
+        setUploading(false);
       }
 
-      // 태그 파싱 (# 태그 분리)
-      const parsedTags = tagInput
-        .split(/[,\s]+/)
-        .map((t) => t.replace(/^#/, '').trim())
-        .filter((t) => t.length > 0);
+      // 태그 파싱 (쉼표 구분)
+      const tagsArray = tagsInput
+        ? tagsInput.split(',').map((t) => t.trim().replace(/^#/, '')).filter(Boolean)
+        : ['특무제보'];
 
-      const { error: insertError } = await supabase.from('reports').insert([
+      // 2. DB에 보고서 등록 (required_level 포함)
+      const { error } = await supabase.from('reports').insert([
         {
           title: title.trim(),
-          category: isNotice ? '긴급 공지' : category,
+          category,
+          danger_level: category === '위험 보고서' ? dangerLevel : '일반',
+          location: category === '위험 보고서' ? location.trim() || '미상 구역' : '자유 게시판',
           content: content.trim(),
-          location: category === '위험 보고서' && !isNotice ? (location.trim() || '미상 구역') : '사령부 본부',
-          danger_level: category === '위험 보고서' && !isNotice ? dangerLevel : '공지',
-          tags: parsedTags,
-          image_url: uploadedImageUrl,
-          is_notice: isNotice,
-          user_id: user.id,
-          author_nickname: nickname,
+          tags: tagsArray,
+          image_url: finalImageUrl || null,
+          required_level: requiredLevel, // 🔒 지정된 최소 보안 인가 등급
+          user_id: currentUserId,
+          author_nickname: userNickname,
         },
       ]);
 
-      if (insertError) {
-        console.error('Insert Error Detail:', insertError);
-        setErrorMsg('문서 저장 실패: ' + insertError.message);
-        setLoading(false);
-        return;
-      }
+      if (error) {
+        alert('문서 작성 실패: ' + error.message);
+      } else {
+        // 🎮 글 작성 보상 (+15 EXP 경험치 지급)
+        if (currentUserId) {
+          const { data: profile } = await supabase
+            .from('user_profiles')
+            .select('exp')
+            .eq('user_id', currentUserId)
+            .single();
 
-      alert('성공적으로 등록되었습니다.');
-      router.push('/dashboard');
+          if (profile) {
+            await supabase
+              .from('user_profiles')
+              .update({ exp: profile.exp + 15 })
+              .eq('user_id', currentUserId);
+          }
+        }
+
+        alert('기밀 문서 작성이 완료되었습니다 (+15 EXP 습득)!');
+        router.push('/dashboard');
+      }
     } catch (err: any) {
-      console.error('Submit Exception:', err);
-      setErrorMsg('시스템 오류가 발생했습니다: ' + (err?.message || '알 수 없는 오류'));
+      alert('오류 발생: ' + err.message);
+    } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full bg-neutral-900/60 border border-neutral-800 p-8 rounded-lg space-y-6">
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono p-4 sm:p-8">
+      <div className="max-w-2xl mx-auto space-y-6">
+        
+        {/* 상단 헤더 */}
         <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
-          <div className="flex items-center space-x-3">
-            <FilePlus className="w-6 h-6 text-red-600 animate-pulse" />
-            <h2 className="text-lg font-bold text-neutral-100">신규 기밀 문서 / 게시글 작성</h2>
-          </div>
           <button
-            onClick={() => router.push('/dashboard')}
-            className="text-xs text-neutral-500 hover:text-neutral-300 flex items-center space-x-1 cursor-pointer"
+            onClick={() => router.back()}
+            className="flex items-center space-x-2 text-xs text-neutral-400 hover:text-white cursor-pointer transition-colors"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>대시보드로 돌아가기</span>
+            <ArrowLeft className="w-4 h-4" />
+            <span>돌아가기</span>
           </button>
+          <div className="flex items-center space-x-2">
+            <ShieldAlert className="w-5 h-5 text-red-600 animate-pulse" />
+            <h1 className="text-sm font-bold text-red-600 tracking-wider">NEW CLASSIFIED DOCUMENT</h1>
+          </div>
         </div>
 
-        {errorMsg && (
-          <div className="bg-red-950/60 border border-red-900/80 text-red-400 text-xs p-3 rounded text-center break-all">
-            {errorMsg}
+        {/* 작성 폼 */}
+        <form onSubmit={handleSubmit} className="bg-neutral-900 border border-neutral-800 p-6 rounded-lg space-y-5">
+          
+          {/* 카테고리 선택 */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-400 mb-2">문서 분류 (Category)</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setCategory('위험 보고서')}
+                className={`py-2.5 px-3 rounded text-xs font-bold border transition-all cursor-pointer ${
+                  category === '위험 보고서'
+                    ? 'bg-red-950 border-red-800 text-red-300'
+                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                🚨 위험 보고서
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory('자유 게시판')}
+                className={`py-2.5 px-3 rounded text-xs font-bold border transition-all cursor-pointer ${
+                  category === '자유 게시판'
+                    ? 'bg-red-950 border-red-800 text-red-300'
+                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                📻 자유 게시판
+              </button>
+            </div>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          {/* 사령관 전용 공지 체크박스 */}
-          {isAdmin && (
-            <div className="bg-red-950/40 border border-red-900/80 p-3 rounded flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Megaphone className="w-4 h-4 text-red-500 animate-bounce" />
-                <span className="text-xs font-bold text-red-300">사령부 최고 지침 (최상단 고정 공지사항 등록)</span>
-              </div>
-              <input
-                type="checkbox"
-                checked={isNotice}
-                onChange={(e) => setIsNotice(e.target.checked)}
-                className="w-4 h-4 accent-red-600 cursor-pointer"
-              />
-            </div>
-          )}
-
-          {/* 카테고리 */}
-          {!isNotice && (
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1.5">문서 분류 (카테고리)</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setCategory('위험 보고서')}
-                  className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
-                    category === '위험 보고서'
-                      ? 'bg-red-950/80 border-red-700 text-red-300'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                  }`}
-                >
-                  <AlertTriangle className="w-4 h-4" />
-                  <span>위험 보고서 (특무 기밀)</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setCategory('자유 게시판')}
-                  className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
-                    category === '자유 게시판'
-                      ? 'bg-neutral-800 border-neutral-600 text-neutral-100'
-                      : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                  }`}
-                >
-                  <Radio className="w-4 h-4" />
-                  <span>자유 게시판 (요원 소통)</span>
-                </button>
-              </div>
-            </div>
-          )}
+          {/* 🔒 열람 최소 보안 인가 등급 선택 옵션 */}
+          <div className="bg-neutral-950 border border-neutral-800 p-4 rounded space-y-2">
+            <label className="block text-xs font-bold text-neutral-300 flex items-center space-x-1.5">
+              <Lock className="w-3.5 h-3.5 text-red-500" />
+              <span>열람 인가 최소 등급 (Min Security Clearance)</span>
+            </label>
+            <p className="text-[11px] text-neutral-500">
+              지정한 등급보다 낮은 요원이 열람할 경우 내용이 <strong className="text-red-400">■■■■ (검은 상자)</strong>로 마스킹 처리됩니다.
+            </p>
+            <select
+              value={requiredLevel}
+              onChange={(e) => setRequiredLevel(Number(e.target.value))}
+              className="w-full bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900 cursor-pointer font-bold"
+            >
+              <option value={5}>보안 5급 이상 (수습 요원 포함 전체 공개)</option>
+              <option value={4}>보안 4급 이상 (정지요원 이상 공개)</option>
+              <option value={3}>보안 3급 이상 (선임요원 이상 공개)</option>
+              <option value={2}>보안 2급 이상 (특무분석관 이상 공개)</option>
+              <option value={1}>보안 1급 전용 (사령관 최고 기밀)</option>
+            </select>
+          </div>
 
           {/* 제목 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">문서 제목 / 사건명</label>
+            <label className="block text-xs font-bold text-neutral-400 mb-1">문서 제목 (Title)</label>
             <input
               type="text"
               required
-              disabled={loading}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={isNotice ? '[공지] 특무 사령부 긴급 보안 지침 통보' : '제목을 입력하세요'}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded px-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
+              placeholder="예: [제보] 서울 6호선 폐역 구간의 음파 이상 진동"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
             />
           </div>
 
-          {/* 위치 & 위험도 */}
-          {!isNotice && category === '위험 보고서' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 위험 보고서일 때 추가 입력 필드 */}
+          {category === '위험 보고서' && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs text-neutral-400 mb-1.5">사건 발생 위치/구역</label>
-                <div className="relative">
-                  <MapPin className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-                  <input
-                    type="text"
-                    disabled={loading}
-                    value={location}
-                    onChange={(e) => setLocation(e.target.value)}
-                    placeholder="예: 서울 구로구 폐공장 지하 B2"
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
-                  />
-                </div>
+                <label className="block text-xs font-bold text-neutral-400 mb-1 flex items-center space-x-1">
+                  <AlertCircle className="w-3.5 h-3.5 text-red-500" />
+                  <span>위험도 발령 (Hazard Level)</span>
+                </label>
+                <select
+                  value={dangerLevel}
+                  onChange={(e) => setDangerLevel(e.target.value)}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900 cursor-pointer"
+                >
+                  <option value="LEVEL 1 (경미)">LEVEL 1 (경미)</option>
+                  <option value="LEVEL 2 (주의)">LEVEL 2 (주의)</option>
+                  <option value="LEVEL 3 (위험)">LEVEL 3 (위험)</option>
+                  <option value="LEVEL 4 (극심)">LEVEL 4 (극심)</option>
+                  <option value="LEVEL 5 (재앙)">LEVEL 5 (재앙)</option>
+                </select>
               </div>
 
               <div>
-                <label className="block text-xs text-neutral-400 mb-1.5">위험도 등급 지정</label>
-                <div className="relative">
-                  <AlertTriangle className="w-4 h-4 text-red-600 absolute left-3 top-3" />
-                  <select
-                    value={dangerLevel}
-                    onChange={(e) => setDangerLevel(e.target.value)}
-                    disabled={loading}
-                    className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 appearance-none"
-                  >
-                    <option value="LEVEL 1 (경미)">LEVEL 1 (경미 - 관찰 필요)</option>
-                    <option value="LEVEL 2 (주의)">LEVEL 2 (주의 - 민간인 접근 금지)</option>
-                    <option value="LEVEL 3 (위험)">LEVEL 3 (위험 - 즉각 격리 필요)</option>
-                    <option value="LEVEL 4 (극심)">LEVEL 4 (극심 - 특무 대원 출동)</option>
-                    <option value="LEVEL 5 (재앙)">LEVEL 5 (재앙 - 국가적 비상사태)</option>
-                  </select>
-                </div>
+                <label className="block text-xs font-bold text-neutral-400 mb-1 flex items-center space-x-1">
+                  <MapPin className="w-3.5 h-3.5 text-neutral-500" />
+                  <span>발생 장소 (Location)</span>
+                </label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="예: 서울 마포구 상암동 지하 구역"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                />
               </div>
             </div>
           )}
 
-          {/* 태그 입력 */}
+          {/* 상세 현황 내용 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">해시태그 (공백이나 쉼표로 구분)</label>
-            <div className="relative">
-              <Hash className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-              <input
-                type="text"
-                disabled={loading}
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                placeholder="예: 서울 실종 심야 현장목격"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
-              />
-            </div>
-          </div>
-
-          {/* 사진 첨부 */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">첨부 이미지 (선택)</label>
-            <div className="relative border border-neutral-800 border-dashed rounded-lg p-4 bg-neutral-950 text-center">
-              <input
-                type="file"
-                accept="image/*"
-                disabled={loading}
-                onChange={(e) => {
-                  if (e.target.files && e.target.files[0]) {
-                    setImageFile(e.target.files[0]);
-                  }
-                }}
-                className="hidden"
-                id="file-upload"
-              />
-              <label
-                htmlFor="file-upload"
-                className="cursor-pointer flex flex-col items-center justify-center space-y-2 text-xs text-neutral-400 hover:text-red-400 transition-colors"
-              >
-                <ImagePlus className="w-8 h-8 text-neutral-600" />
-                <span>
-                  {imageFile ? `선택된 파일: ${imageFile.name}` : '클릭하여 사진 이미지 업로드'}
-                </span>
-              </label>
-            </div>
-          </div>
-
-          {/* 상세 내용 */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">상세 내용</label>
+            <label className="block text-xs font-bold text-neutral-400 mb-1">상세 사건 내용 (Content)</label>
             <textarea
               required
-              rows={6}
-              disabled={loading}
+              rows={8}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="내용을 작성해 주세요..."
-              className="w-full bg-neutral-950 border border-neutral-800 rounded p-4 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 resize-none"
+              placeholder="현장에서 목격된 상황, 이상 현상, 요원 준수 수칙을 상세하게 기록하세요..."
+              className="w-full bg-neutral-950 border border-neutral-800 rounded p-3 text-xs text-neutral-200 focus:outline-none focus:border-red-900 resize-none leading-relaxed"
             />
           </div>
 
-          <div className="pt-2 flex justify-end space-x-3">
-            <button
-              type="button"
-              onClick={() => router.push('/dashboard')}
-              className="bg-neutral-800 hover:bg-neutral-700 text-neutral-400 text-xs px-5 py-2.5 rounded cursor-pointer"
-            >
-              취소
-            </button>
-            <button
-              type="submit"
-              disabled={loading}
-              className="bg-red-900 hover:bg-red-800 text-white font-bold text-xs px-6 py-2.5 rounded border border-red-700 flex items-center space-x-2 cursor-pointer disabled:opacity-50"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>전송 중...</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-3.5 h-3.5" />
-                  <span>{isNotice ? '긴급 공지 전파' : '문서 제출'}</span>
-                </>
-              )}
-            </button>
+          {/* 태그 입력 */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-400 mb-1 flex items-center space-x-1">
+              <Tag className="w-3.5 h-3.5 text-neutral-500" />
+              <span>검색 태그 (Tags)</span>
+            </label>
+            <input
+              type="text"
+              value={tagsInput}
+              onChange={(e) => setTagsInput(e.target.value)}
+              placeholder="태그를 쉼표(,)로 구분하여 입력 (예: 도시괴담, 지하철, 음파이상)"
+              className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+            />
           </div>
+
+          {/* 이미지 첨부 */}
+          <div>
+            <label className="block text-xs font-bold text-neutral-400 mb-1 flex items-center space-x-1">
+              <ImageIcon className="w-3.5 h-3.5 text-neutral-500" />
+              <span>현장 사진 첨부 (Attachment)</span>
+            </label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleImageChange}
+              className="w-full text-xs text-neutral-400 file:mr-3 file:py-2 file:px-3 file:rounded file:border-0 file:text-xs file:font-bold file:bg-neutral-800 file:text-neutral-300 hover:file:bg-neutral-700 cursor-pointer"
+            />
+            {imageUrl && (
+              <div className="mt-2 relative rounded overflow-hidden border border-neutral-800 max-h-48 bg-neutral-950">
+                <img src={imageUrl} alt="Preview" className="w-full h-full object-contain" />
+              </div>
+            )}
+          </div>
+
+          {/* 작성 제출 버튼 */}
+          <button
+            type="submit"
+            disabled={loading || uploading}
+            className="w-full bg-red-900 hover:bg-red-800 text-white font-bold text-xs py-3.5 rounded border border-red-700 flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-950/50 transition-all disabled:opacity-50"
+          >
+            <Send className="w-4 h-4" />
+            <span>{loading ? '기밀 문서 등록 중...' : '기밀 문서 작성 완료 (+15 EXP)'}</span>
+          </button>
         </form>
       </div>
     </div>
