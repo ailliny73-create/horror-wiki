@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -25,7 +25,7 @@ export default function DashboardPage() {
 
   // 🎮 유저 경험치 및 등급 상태
   const [userExp, setUserExp] = useState<number>(0);
-  const [userLevel, setUserLevel] = useState<number>(5); // 1급 ~ 5급
+  const [userLevel, setUserLevel] = useState<number>(5);
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -64,9 +64,11 @@ export default function DashboardPage() {
   const [listTranslating, setListTranslating] = useState(false);
   const [translatedMap, setTranslatedMap] = useState<{ [id: string]: { title: string; content: string } }>({});
 
-  // 댓글 상태
+  // 댓글 및 답글 상태
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
+  const [replyTargetId, setReplyTargetId] = useState<string | null>(null); // 답글 작성 대상 댓글 ID
+  const [replyText, setReplyText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
 
   const router = useRouter();
@@ -141,7 +143,6 @@ export default function DashboardPage() {
     }
   };
 
-  // ✏️ [닉네임 변경 처리 함수 - ADMIN 사칭 방지 검증 포함]
   const handleSaveNickname = async () => {
     const trimmed = newNickname.trim();
     if (!trimmed || !currentUserId) return;
@@ -151,7 +152,6 @@ export default function DashboardPage() {
       return;
     }
 
-    // 🚨 ADMIN 및 사령관/관리자 사칭 키워드 차단
     const upperNick = trimmed.toUpperCase();
     const forbiddenKeywords = ['ADMIN', '관리자', '사령관', '최고관리자', '특무사령관'];
     
@@ -279,7 +279,9 @@ export default function DashboardPage() {
     setEditLocation(report.location || '');
     setEditDangerLevel(report.danger_level || 'LEVEL 1 (경미)');
     setIsEditing(false);
-    
+    setReplyTargetId(null);
+    setReplyText('');
+
     setIsModalTranslated(false);
     setModalTranslatedTitle('');
     setModalTranslatedContent('');
@@ -344,6 +346,7 @@ export default function DashboardPage() {
     }
   };
 
+  // 💬 [댓글 작성]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -361,6 +364,7 @@ export default function DashboardPage() {
         user_id: currentUserId,
         author_nickname: userNickname,
         content: newComment.trim(),
+        parent_id: null, // 최상위 댓글
       },
     ]);
 
@@ -389,6 +393,42 @@ export default function DashboardPage() {
       }
 
       setNewComment('');
+      await fetchComments(selectedReport.id);
+    }
+    setCommentLoading(false);
+  };
+
+  // 💬 [답글(대댓글) 작성]
+  const handleAddReply = async (parentId: string) => {
+    if (!replyText.trim() || !selectedReport || commentLoading) return;
+
+    setCommentLoading(true);
+
+    const { error } = await supabase.from('comments').insert([
+      {
+        report_id: selectedReport.id,
+        user_id: currentUserId,
+        author_nickname: userNickname,
+        content: replyText.trim(),
+        parent_id: parentId, // 부모 댓글 ID 연결
+      },
+    ]);
+
+    if (error) {
+      alert('Error: ' + error.message);
+    } else {
+      if (currentUserId) {
+        await supabase.rpc('add_user_exp', {
+          target_user_id: currentUserId,
+          exp_to_add: 5,
+        });
+        const newExp = userExp + 5;
+        setUserExp(newExp);
+        setUserLevel(calculateLevel(newExp, isAdmin));
+      }
+
+      setReplyText('');
+      setReplyTargetId(null);
       await fetchComments(selectedReport.id);
     }
     setCommentLoading(false);
@@ -515,6 +555,10 @@ export default function DashboardPage() {
 
     return true;
   });
+
+  // 댓글 트리 구조 분리 (최상위 댓글 & 답글)
+  const rootComments = comments.filter((c) => !c.parent_id);
+  const getReplies = (parentId: string) => comments.filter((c) => c.parent_id === parentId);
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col md:flex-row">
@@ -653,7 +697,6 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* 닉네임 표기 & 인라인 수정 폼 */}
                 <div className="border-b border-neutral-900 pb-2 space-y-1">
                   {isEditingNickname ? (
                     <div className="flex items-center space-x-1.5 pt-1">
@@ -1171,13 +1214,14 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* 댓글 섹션 */}
+                {/* 💬 댓글 및 답글 스레드 섹션 */}
                 <div className="border-t border-neutral-800 pt-5 space-y-4">
                   <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
                     <MessageSquare className="w-4 h-4 text-red-600" />
                     <span>{t.comments} ({comments.length})</span>
                   </div>
 
+                  {/* 최상위 댓글 작성 폼 */}
                   {userLevel <= (selectedReport.required_level || 5) ? (
                     <form onSubmit={handleAddComment} className="flex gap-2">
                       <input
@@ -1203,38 +1247,120 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  <div className="space-y-2.5 max-h-60 overflow-y-auto pr-1">
-                    {comments.length === 0 ? (
+                  {/* 댓글 스레드 목록 */}
+                  <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+                    {rootComments.length === 0 ? (
                       <div className="text-center text-[11px] text-neutral-600 py-4">
                         {t.noComments}
                       </div>
                     ) : (
-                      comments.map((comment) => (
-                        <div
-                          key={comment.id}
-                          className="bg-neutral-950 border border-neutral-800/80 p-3 rounded space-y-1 text-xs"
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-bold text-red-400">{comment.author_nickname}</span>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-[10px] text-neutral-600">
-                                {new Date(comment.created_at).toLocaleString()}
-                              </span>
-                              {(isAdmin || currentUserId === comment.user_id) && (
-                                <button
-                                  onClick={() => handleDeleteComment(comment.id)}
-                                  className="text-neutral-600 hover:text-red-400 cursor-pointer"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
+                      rootComments.map((comment) => {
+                        const replies = getReplies(comment.id);
+
+                        return (
+                          <div key={comment.id} className="space-y-2">
+                            {/* 부모 댓글 카드 */}
+                            <div className="bg-neutral-950 border border-neutral-800/80 p-3 rounded space-y-1.5 text-xs">
+                              <div className="flex justify-between items-center">
+                                <span className="font-bold text-red-400">{comment.author_nickname}</span>
+                                <div className="flex items-center space-x-2">
+                                  <span className="text-[10px] text-neutral-600">
+                                    {new Date(comment.created_at).toLocaleString()}
+                                  </span>
+                                  {(isAdmin || currentUserId === comment.user_id) && (
+                                    <button
+                                      onClick={() => handleDeleteComment(comment.id)}
+                                      className="text-neutral-600 hover:text-red-400 cursor-pointer"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                              <p className="text-neutral-300 leading-relaxed break-all">
+                                {userLevel <= (selectedReport.required_level || 5) ? comment.content : maskText(comment.content, selectedReport.required_level || 5)}
+                              </p>
+
+                              {/* 답글 달기 버튼 */}
+                              {userLevel <= (selectedReport.required_level || 5) && (
+                                <div className="pt-1 flex justify-end">
+                                  <button
+                                    onClick={() => {
+                                      if (replyTargetId === comment.id) {
+                                        setReplyTargetId(null);
+                                      } else {
+                                        setReplyTargetId(comment.id);
+                                        setReplyText('');
+                                      }
+                                    }}
+                                    className="text-[10px] text-neutral-500 hover:text-red-400 flex items-center space-x-1 cursor-pointer transition-colors"
+                                  >
+                                    <CornerDownRight className="w-3 h-3" />
+                                    <span>{replyTargetId === comment.id ? '취소' : '답글 달기'}</span>
+                                  </button>
+                                </div>
                               )}
                             </div>
+
+                            {/* 답글 입력 폼 */}
+                            {replyTargetId === comment.id && (
+                              <div className="pl-6 flex gap-2 pt-1">
+                                <CornerDownRight className="w-4 h-4 text-red-500 shrink-0 mt-2" />
+                                <input
+                                  type="text"
+                                  value={replyText}
+                                  onChange={(e) => setReplyText(e.target.value)}
+                                  placeholder={`${comment.author_nickname} 요원에게 남길 답글 입력...`}
+                                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded px-3 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleAddReply(comment.id)}
+                                  disabled={commentLoading || !replyText.trim()}
+                                  className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-xs px-3 py-1.5 rounded font-bold cursor-pointer disabled:opacity-50 shrink-0"
+                                >
+                                  {commentLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '답글 (+5 EXP)'}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* 자식 답글들 (들여쓰기 연출) */}
+                            {replies.length > 0 && (
+                              <div className="pl-6 space-y-2 border-l border-neutral-800 ml-2">
+                                {replies.map((reply) => (
+                                  <div
+                                    key={reply.id}
+                                    className="bg-neutral-900/60 border border-neutral-800/50 p-2.5 rounded space-y-1 text-xs"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <div className="flex items-center space-x-1.5">
+                                        <CornerDownRight className="w-3 h-3 text-red-500" />
+                                        <span className="font-bold text-neutral-300">{reply.author_nickname}</span>
+                                      </div>
+                                      <div className="flex items-center space-x-2">
+                                        <span className="text-[9px] text-neutral-600">
+                                          {new Date(reply.created_at).toLocaleString()}
+                                        </span>
+                                        {(isAdmin || currentUserId === reply.user_id) && (
+                                          <button
+                                            onClick={() => handleDeleteComment(reply.id)}
+                                            className="text-neutral-600 hover:text-red-400 cursor-pointer"
+                                          >
+                                            <X className="w-3 h-3" />
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <p className="text-neutral-400 pl-4 leading-relaxed break-all">
+                                      {userLevel <= (selectedReport.required_level || 5) ? reply.content : maskText(reply.content, selectedReport.required_level || 5)}
+                                    </p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                          <p className="text-neutral-300 leading-relaxed break-all">
-                            {userLevel <= (selectedReport.required_level || 5) ? comment.content : maskText(comment.content, selectedReport.required_level || 5)}
-                          </p>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
