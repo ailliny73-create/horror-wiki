@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus } from 'lucide-react';
+import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio } from 'lucide-react';
 
 export default function NewReportPage() {
   const [title, setTitle] = useState('');
+  const [category, setCategory] = useState('위험 보고서');
   const [location, setLocation] = useState('');
   const [dangerLevel, setDangerLevel] = useState('LEVEL 1 (경미)');
   const [content, setContent] = useState('');
@@ -34,7 +35,6 @@ export default function NewReportPage() {
       const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '익명 요원';
       let uploadedImageUrl = '';
 
-      // 이미지 파일 존재 시 Supabase Storage 업로드
       if (imageFile) {
         const fileExt = imageFile.name.split('.').pop();
         const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
@@ -55,11 +55,12 @@ export default function NewReportPage() {
       const { error: insertError } = await supabase.from('reports').insert([
         {
           title: title.trim(),
+          category: category,
           content: content.trim(),
-          location: location.trim() || '미상 구역',
-          danger_level: dangerLevel,
+          location: category === '위험 보고서' ? (location.trim() || '미상 구역') : '자유 게시판',
+          danger_level: category === '위험 보고서' ? dangerLevel : '일반',
           image_url: uploadedImageUrl,
-          user_id: user.id, // ★ 작성자 고유 ID 등록 (타인 수정 차단의 기준)
+          user_id: user.id,
           author_nickname: nickname,
         },
       ]);
@@ -71,7 +72,7 @@ export default function NewReportPage() {
         return;
       }
 
-      alert('특무 기밀 보고서가 성공적으로 등록되었습니다.');
+      alert('게시글이 성공적으로 등록되었습니다.');
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Submit Exception:', err);
@@ -86,11 +87,11 @@ export default function NewReportPage() {
         <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
           <div className="flex items-center space-x-3">
             <FilePlus className="w-6 h-6 text-red-600 animate-pulse" />
-            <h2 className="text-lg font-bold text-neutral-100">신규 기밀 보고서 작성</h2>
+            <h2 className="text-lg font-bold text-neutral-100">신규 기밀 문서 / 게시글 작성</h2>
           </div>
           <button
             onClick={() => router.push('/dashboard')}
-            className="text-xs text-neutral-500 hover:text-neutral-300 flex items-center space-x-1"
+            className="text-xs text-neutral-500 hover:text-neutral-300 flex items-center space-x-1 cursor-pointer"
           >
             <ArrowLeft className="w-3.5 h-3.5" />
             <span>대시보드로 돌아가기</span>
@@ -104,60 +105,93 @@ export default function NewReportPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 게시판 카테고리 선택 */}
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1.5">문서 분류 (카테고리)</label>
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setCategory('위험 보고서')}
+                className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
+                  category === '위험 보고서'
+                    ? 'bg-red-950/80 border-red-700 text-red-300'
+                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <AlertTriangle className="w-4 h-4" />
+                <span>위험 보고서 (특무 기밀)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setCategory('자유 게시판')}
+                className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
+                  category === '자유 게시판'
+                    ? 'bg-neutral-800 border-neutral-600 text-neutral-100'
+                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                }`}
+              >
+                <Radio className="w-4 h-4" />
+                <span>자유 게시판 (요원 소통)</span>
+              </button>
+            </div>
+          </div>
+
           {/* 제목 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">보고서 제목 / 사건명</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">문서 제목 / 사건명</label>
             <input
               type="text"
               required
               disabled={loading}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: [경고] 제3구역 미확인 생물체 발현 보고"
+              placeholder={category === '위험 보고서' ? '예: [경고] 제3구역 미확인 생물체 발현 보고' : '예: 오늘자 야간 경계 근무 후기 공유합니다.'}
               className="w-full bg-neutral-950 border border-neutral-800 rounded px-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
             />
           </div>
 
-          {/* 위치 & 위험도 등급 */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1.5">사건 발생 위치/구역</label>
-              <div className="relative">
-                <MapPin className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-                <input
-                  type="text"
-                  disabled={loading}
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="예: 서울 구로구 폐공장 지하 B2"
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
-                />
+          {/* 위험 보고서 선택 시에만 위치 & 위험도 표시 */}
+          {category === '위험 보고서' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1.5">사건 발생 위치/구역</label>
+                <div className="relative">
+                  <MapPin className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+                  <input
+                    type="text"
+                    disabled={loading}
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="예: 서울 구로구 폐공장 지하 B2"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <label className="block text-xs text-neutral-400 mb-1.5">위험도 등급 지정</label>
-              <div className="relative">
-                <AlertTriangle className="w-4 h-4 text-red-600 absolute left-3 top-3" />
-                <select
-                  value={dangerLevel}
-                  onChange={(e) => setDangerLevel(e.target.value)}
-                  disabled={loading}
-                  className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 appearance-none"
-                >
-                  <option value="LEVEL 1 (경미)">LEVEL 1 (경미 - 관찰 필요)</option>
-                  <option value="LEVEL 2 (주의)">LEVEL 2 (주의 - 민간인 접근 금지)</option>
-                  <option value="LEVEL 3 (위험)">LEVEL 3 (위험 - 즉각 격리 필요)</option>
-                  <option value="LEVEL 4 (극심)">LEVEL 4 (극심 - 특무 대원 출동)</option>
-                  <option value="LEVEL 5 (재앙)">LEVEL 5 (재앙 - 국가적 비상사태)</option>
-                </select>
+              <div>
+                <label className="block text-xs text-neutral-400 mb-1.5">위험도 등급 지정</label>
+                <div className="relative">
+                  <AlertTriangle className="w-4 h-4 text-red-600 absolute left-3 top-3" />
+                  <select
+                    value={dangerLevel}
+                    onChange={(e) => setDangerLevel(e.target.value)}
+                    disabled={loading}
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 appearance-none"
+                  >
+                    <option value="LEVEL 1 (경미)">LEVEL 1 (경미 - 관찰 필요)</option>
+                    <option value="LEVEL 2 (주의)">LEVEL 2 (주의 - 민간인 접근 금지)</option>
+                    <option value="LEVEL 3 (위험)">LEVEL 3 (위험 - 즉각 격리 필요)</option>
+                    <option value="LEVEL 4 (극심)">LEVEL 4 (극심 - 특무 대원 출동)</option>
+                    <option value="LEVEL 5 (재앙)">LEVEL 5 (재앙 - 국가적 비상사태)</option>
+                  </select>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* 사진 파일 첨부 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">현장 증거 사진 첨부 (선택)</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">증거 사진/첨부 이미지 (선택)</label>
             <div className="relative border border-neutral-800 border-dashed rounded-lg p-4 bg-neutral-950 text-center">
               <input
                 type="file"
@@ -177,7 +211,7 @@ export default function NewReportPage() {
               >
                 <ImagePlus className="w-8 h-8 text-neutral-600" />
                 <span>
-                  {imageFile ? `선택된 파일: ${imageFile.name}` : '클릭하여 현장 증거 이미지 업로드'}
+                  {imageFile ? `선택된 파일: ${imageFile.name}` : '클릭하여 사진 이미지 업로드'}
                 </span>
               </label>
             </div>
@@ -185,14 +219,14 @@ export default function NewReportPage() {
 
           {/* 상세 내용 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">상세 기밀 개요</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">상세 개요 및 내용</label>
             <textarea
               required
               rows={6}
               disabled={loading}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="사건 발생 시각, 주요 현상, 피해 상황 등을 상세히 기술하십시오..."
+              placeholder="내용을 상세히 작성하십시오..."
               className="w-full bg-neutral-950 border border-neutral-800 rounded p-4 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 resize-none"
             />
           </div>
@@ -214,12 +248,12 @@ export default function NewReportPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>보고서 및 이미지 전송 중...</span>
+                  <span>전송 중...</span>
                 </>
               ) : (
                 <>
                   <Send className="w-3.5 h-3.5" />
-                  <span>기밀 보고서 제출</span>
+                  <span>문서 제출</span>
                 </>
               )}
             </button>
