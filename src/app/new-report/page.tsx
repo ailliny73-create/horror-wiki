@@ -3,13 +3,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio, Megaphone } from 'lucide-react';
+import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio, Megaphone, Hash } from 'lucide-react';
 
 export default function NewReportPage() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('위험 보고서');
   const [location, setLocation] = useState('');
   const [dangerLevel, setDangerLevel] = useState('LEVEL 1 (경미)');
+  const [tagInput, setTagInput] = useState('');
   const [content, setContent] = useState('');
   const [isNotice, setIsNotice] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -65,6 +66,12 @@ export default function NewReportPage() {
         }
       }
 
+      // 태그 파싱 (# 태그 분리)
+      const parsedTags = tagInput
+        .split(/[,\s]+/)
+        .map((t) => t.replace(/^#/, '').trim())
+        .filter((t) => t.length > 0);
+
       const { error: insertError } = await supabase.from('reports').insert([
         {
           title: title.trim(),
@@ -72,6 +79,7 @@ export default function NewReportPage() {
           content: content.trim(),
           location: category === '위험 보고서' && !isNotice ? (location.trim() || '미상 구역') : '사령부 본부',
           danger_level: category === '위험 보고서' && !isNotice ? dangerLevel : '공지',
+          tags: parsedTags,
           image_url: uploadedImageUrl,
           is_notice: isNotice,
           user_id: user.id,
@@ -119,7 +127,7 @@ export default function NewReportPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* ★ 대장님(운영자)에게만 노출되는 긴급 공지 체크박스 */}
+          {/* 사령관 전용 공지 체크박스 */}
           {isAdmin && (
             <div className="bg-red-950/40 border border-red-900/80 p-3 rounded flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -135,7 +143,7 @@ export default function NewReportPage() {
             </div>
           )}
 
-          {/* 분류 카테고리 */}
+          {/* 카테고리 */}
           {!isNotice && (
             <div>
               <label className="block text-xs text-neutral-400 mb-1.5">문서 분류 (카테고리)</label>
@@ -182,7 +190,7 @@ export default function NewReportPage() {
             />
           </div>
 
-          {/* 위험 보고서 위치/위험도 */}
+          {/* 위치 & 위험도 */}
           {!isNotice && category === '위험 보고서' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -220,6 +228,22 @@ export default function NewReportPage() {
               </div>
             </div>
           )}
+
+          {/* 태그 입력 */}
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1.5">해시태그 (공백이나 쉼표로 구분)</label>
+            <div className="relative">
+              <Hash className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+              <input
+                type="text"
+                disabled={loading}
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                placeholder="예: 서울 실종 심야 현장목격"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
+              />
+            </div>
+          </div>
 
           {/* 사진 첨부 */}
           <div>
