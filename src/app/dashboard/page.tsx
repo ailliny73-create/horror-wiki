@@ -600,7 +600,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* 🔔 알림 버튼 & 모바일 반응형 화면 고정 드롭다운 */}
+            {/* 🔔 알림 버튼 & 우측 정렬 팝업 (짤림 방지 완벽 반영) */}
             <div className="relative">
               <button
                 onClick={() => setShowNotiDropdown(!showNotiDropdown)}
@@ -614,9 +614,8 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {/* 💡 [수정] 모달 너비 고정 적용으로 화면 왜곡/확장 현상 완전 차단 */}
               {showNotiDropdown && (
-                <div className="absolute left-0 right-auto md:left-auto md:right-0 mt-2 w-72 max-w-[calc(100vw-2.5rem)] bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
+                <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-[100] p-3 space-y-2">
                   <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
                     <span className="text-xs font-bold text-neutral-200">현장 신호 알림</span>
                     {unreadNotiCount > 0 && (
