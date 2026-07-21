@@ -3,11 +3,14 @@
 import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { FilePlus, ArrowLeft, Send, Loader2 } from 'lucide-react';
+import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus } from 'lucide-react';
 
 export default function NewReportPage() {
   const [title, setTitle] = useState('');
+  const [location, setLocation] = useState('');
+  const [dangerLevel, setDangerLevel] = useState('LEVEL 1 (경미)');
   const [content, setContent] = useState('');
+  const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const router = useRouter();
@@ -20,7 +23,6 @@ export default function NewReportPage() {
     setErrorMsg('');
 
     try {
-      // 1. 현재 로그인된 유저 세션 가져오기
       const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !user) {
@@ -30,13 +32,34 @@ export default function NewReportPage() {
       }
 
       const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '익명 요원';
+      let uploadedImageUrl = '';
 
-      // 2. Supabase DB reports 테이블에 기밀 보고서 등록
+      // 이미지 파일 존재 시 Supabase Storage 업로드
+      if (imageFile) {
+        const fileExt = imageFile.name.split('.').pop();
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
+        const filePath = `reports/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('report-images')
+          .upload(filePath, imageFile);
+
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage
+            .from('report-images')
+            .getPublicUrl(filePath);
+          uploadedImageUrl = urlData.publicUrl;
+        }
+      }
+
       const { error: insertError } = await supabase.from('reports').insert([
         {
           title: title.trim(),
           content: content.trim(),
-          user_id: user.id,
+          location: location.trim() || '미상 구역',
+          danger_level: dangerLevel,
+          image_url: uploadedImageUrl,
+          user_id: user.id, // ★ 작성자 고유 ID 등록 (타인 수정 차단의 기준)
           author_nickname: nickname,
         },
       ]);
@@ -62,7 +85,7 @@ export default function NewReportPage() {
       <div className="max-w-2xl w-full bg-neutral-900/60 border border-neutral-800 p-8 rounded-lg space-y-6">
         <div className="flex items-center justify-between border-b border-neutral-800 pb-4">
           <div className="flex items-center space-x-3">
-            <FilePlus className="w-6 h-6 text-red-600" />
+            <FilePlus className="w-6 h-6 text-red-600 animate-pulse" />
             <h2 className="text-lg font-bold text-neutral-100">신규 기밀 보고서 작성</h2>
           </div>
           <button
@@ -75,12 +98,13 @@ export default function NewReportPage() {
         </div>
 
         {errorMsg && (
-          <div className="bg-red-950/60 border border-red-900/80 text-red-400 text-xs p-3 rounded text-center">
+          <div className="bg-red-950/60 border border-red-900/80 text-red-400 text-xs p-3 rounded text-center break-all">
             {errorMsg}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* 제목 */}
           <div>
             <label className="block text-xs text-neutral-400 mb-1.5">보고서 제목 / 사건명</label>
             <input
@@ -89,24 +113,91 @@ export default function NewReportPage() {
               disabled={loading}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="예: [경고] 제3구역 괴생명체 목격 보고"
+              placeholder="예: [경고] 제3구역 미확인 생물체 발현 보고"
               className="w-full bg-neutral-950 border border-neutral-800 rounded px-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
             />
           </div>
 
+          {/* 위치 & 위험도 등급 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1.5">사건 발생 위치/구역</label>
+              <div className="relative">
+                <MapPin className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+                <input
+                  type="text"
+                  disabled={loading}
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="예: 서울 구로구 폐공장 지하 B2"
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1.5">위험도 등급 지정</label>
+              <div className="relative">
+                <AlertTriangle className="w-4 h-4 text-red-600 absolute left-3 top-3" />
+                <select
+                  value={dangerLevel}
+                  onChange={(e) => setDangerLevel(e.target.value)}
+                  disabled={loading}
+                  className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 appearance-none"
+                >
+                  <option value="LEVEL 1 (경미)">LEVEL 1 (경미 - 관찰 필요)</option>
+                  <option value="LEVEL 2 (주의)">LEVEL 2 (주의 - 민간인 접근 금지)</option>
+                  <option value="LEVEL 3 (위험)">LEVEL 3 (위험 - 즉각 격리 필요)</option>
+                  <option value="LEVEL 4 (극심)">LEVEL 4 (극심 - 특무 대원 출동)</option>
+                  <option value="LEVEL 5 (재앙)">LEVEL 5 (재앙 - 국가적 비상사태)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* 사진 파일 첨부 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">상세 기밀 내용</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">현장 증거 사진 첨부 (선택)</label>
+            <div className="relative border border-neutral-800 border-dashed rounded-lg p-4 bg-neutral-950 text-center">
+              <input
+                type="file"
+                accept="image/*"
+                disabled={loading}
+                onChange={(e) => {
+                  if (e.target.files && e.target.files[0]) {
+                    setImageFile(e.target.files[0]);
+                  }
+                }}
+                className="hidden"
+                id="file-upload"
+              />
+              <label
+                htmlFor="file-upload"
+                className="cursor-pointer flex flex-col items-center justify-center space-y-2 text-xs text-neutral-400 hover:text-red-400 transition-colors"
+              >
+                <ImagePlus className="w-8 h-8 text-neutral-600" />
+                <span>
+                  {imageFile ? `선택된 파일: ${imageFile.name}` : '클릭하여 현장 증거 이미지 업로드'}
+                </span>
+              </label>
+            </div>
+          </div>
+
+          {/* 상세 내용 */}
+          <div>
+            <label className="block text-xs text-neutral-400 mb-1.5">상세 기밀 개요</label>
             <textarea
               required
-              rows={8}
+              rows={6}
               disabled={loading}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="사건 발생 일시, 장소, 현장 상황을 상세히 작성하십시오..."
+              placeholder="사건 발생 시각, 주요 현상, 피해 상황 등을 상세히 기술하십시오..."
               className="w-full bg-neutral-950 border border-neutral-800 rounded p-4 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 resize-none"
             />
           </div>
 
+          {/* 제출 버튼 */}
           <div className="pt-2 flex justify-end space-x-3">
             <button
               type="button"
@@ -123,7 +214,7 @@ export default function NewReportPage() {
               {loading ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>보고서 전송 중...</span>
+                  <span>보고서 및 이미지 전송 중...</span>
                 </>
               ) : (
                 <>

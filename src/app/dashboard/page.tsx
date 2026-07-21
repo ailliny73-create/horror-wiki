@@ -12,7 +12,6 @@ export default function DashboardPage() {
   const [reports, setReports] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   
-  // 상세보기 및 수정 모달 상태
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -50,7 +49,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 게시글 클릭 시 상세보기 모달 열기
   const handleOpenDetail = (report: any) => {
     setSelectedReport(report);
     setEditTitle(report.title);
@@ -60,7 +58,6 @@ export default function DashboardPage() {
     setIsEditing(false);
   };
 
-  // 게시글 삭제
   const handleDelete = async (reportId: string) => {
     if (!confirm('정말로 이 기밀 보고서를 파기(삭제)하시겠습니까?')) return;
     setActionLoading(true);
@@ -68,7 +65,7 @@ export default function DashboardPage() {
     const { error } = await supabase.from('reports').delete().eq('id', reportId);
 
     if (error) {
-      alert('삭제 실패: ' + error.message);
+      alert('삭제 실패 (작성자 본인만 파기할 수 있습니다): ' + error.message);
     } else {
       alert('기밀 보고서가 파기되었습니다.');
       setSelectedReport(null);
@@ -77,7 +74,6 @@ export default function DashboardPage() {
     setActionLoading(false);
   };
 
-  // 게시글 수정 저장
   const handleUpdate = async () => {
     if (!selectedReport) return;
     setActionLoading(true);
@@ -93,7 +89,7 @@ export default function DashboardPage() {
       .eq('id', selectedReport.id);
 
     if (error) {
-      alert('수정 실패: ' + error.message);
+      alert('수정 실패 (작성자 본인만 수정할 수 있습니다): ' + error.message);
     } else {
       alert('보고서 수정이 완료되었습니다.');
       setIsEditing(false);
@@ -189,11 +185,10 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {/* 팝업 모달 (상세보기 & 수정) */}
+      {/* 상세보기 및 수정 모달 */}
       {selectedReport && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-5">
-            {/* 모달 헤더 */}
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
               <span className="text-xs text-red-500 font-bold tracking-wider">LEVEL 3 기밀 문서 상세</span>
               <button
@@ -205,7 +200,6 @@ export default function DashboardPage() {
             </div>
 
             {isEditing ? (
-              /* 수정 폼 */
               <div className="space-y-4">
                 <div>
                   <label className="block text-xs text-neutral-400 mb-1">제목</label>
@@ -266,7 +260,6 @@ export default function DashboardPage() {
                 </div>
               </div>
             ) : (
-              /* 상세보기 뷰 */
               <div className="space-y-4">
                 <div className="flex justify-between items-start gap-2">
                   <h2 className="text-lg font-bold text-neutral-100">{selectedReport.title}</h2>
@@ -286,7 +279,6 @@ export default function DashboardPage() {
                   {selectedReport.content}
                 </div>
 
-                {/* 이미지 원본 보기 */}
                 {selectedReport.image_url && (
                   <div className="space-y-1">
                     <span className="text-[11px] text-neutral-500">현장 첨부 증거 사진:</span>
@@ -303,8 +295,8 @@ export default function DashboardPage() {
                   <span>{new Date(selectedReport.created_at).toLocaleString()}</span>
                 </div>
 
-                {/* 작성자 본인일 경우에만 수정/삭제 버튼 노출 */}
-                {currentUserId === selectedReport.user_id && (
+                {/* ★ 작성자 본인일 경우에만 [수정] 및 [파기] 버튼 노출! 타인은 보이지 않음 */}
+                {currentUserId && currentUserId === selectedReport.user_id && (
                   <div className="flex justify-end space-x-2 border-t border-neutral-800 pt-3">
                     <button
                       onClick={() => setIsEditing(true)}
