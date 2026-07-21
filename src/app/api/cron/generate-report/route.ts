@@ -38,13 +38,14 @@ export async function GET(request: Request) {
 반드시 아래 예시와 같은 순수한 JSON 형식으로만 응답해라 (마크다운 코드블록이나 추가 텍스트 절대 금지):
 
 {
-  "title": "[경고] 또는 [제보]로 시작하는 20자 이내의 흥미로운 보고서 제목",
+  "title": "[AI] [경고] 또는 [AI] [제보]로 시작하는 20자 이내의 보고서 제목",
   "location": "사건 발생 장소 (예: 서울 마포구 지하철 6호선 폐역 구간)",
   "danger_level": "LEVEL 1 (경미)",
   "content": "사건 현장 상황, 감지된 이상 현상, 요원 수칙을 포함한 250자 내외의 오싹한 상세 내용",
-  "tags": ["도시괴담", "이상현상", "장소명"]
+  "tags": ["AI보고서", "도시괴담", "이상현상"]
 }
 
+주의사항: title 맨 앞에는 무조건 '[AI]' 태그가 들어가야 한다.
 위 danger_level 값은 "LEVEL 1 (경미)", "LEVEL 2 (주의)", "LEVEL 3 (위험)", "LEVEL 4 (극심)", "LEVEL 5 (재앙)" 중 하나를 무작위로 선택해라.
 `;
 
@@ -70,16 +71,22 @@ export async function GET(request: Request) {
     const cleanJsonStr = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
     const reportData = JSON.parse(cleanJsonStr);
 
-    // 3. Supabase DB에 안전하게 접속하여 저장
+    // 제목에 [AI] 태그 보장 처리
+    let formattedTitle = reportData.title || '[AI] 미확인 이상 현상 보고';
+    if (!formattedTitle.startsWith('[AI]')) {
+      formattedTitle = `[AI] ${formattedTitle}`;
+    }
+
+    // 3. Supabase DB에 저장
     const supabase = getSupabaseClient();
     const { error: insertError } = await supabase.from('reports').insert([
       {
-        title: reportData.title,
+        title: formattedTitle,
         category: '위험 보고서',
         content: reportData.content,
         location: reportData.location || '미상 구역',
         danger_level: reportData.danger_level || 'LEVEL 1 (경미)',
-        tags: reportData.tags || ['AI제보', '괴이현상'],
+        tags: reportData.tags || ['AI보고서', '괴이현상'],
         user_id: '00000000-0000-0000-0000-000000000000', // AI 전용 시스템 요원 ID
         author_nickname: '🤖 AI 특무 분석관',
       },
@@ -93,7 +100,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       success: true,
       message: 'AI 기밀 보고서가 성공적으로 생성 및 등록되었습니다.',
-      generated_report: reportData,
+      generated_report: { ...reportData, title: formattedTitle },
     });
   } catch (err: any) {
     console.error('Cron Execution Error:', err);
