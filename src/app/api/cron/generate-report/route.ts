@@ -1,10 +1,17 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase 클라이언트 초기화
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// GET 요청이 올 때만 안전하게 Supabase 클라이언트를 생성하는 함수
+function getSupabaseClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error('Supabase environment variables are missing');
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey);
+}
 
 export async function GET(request: Request) {
   // 1. Cron 호출 보안 검증
@@ -63,7 +70,8 @@ export async function GET(request: Request) {
     const cleanJsonStr = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
     const reportData = JSON.parse(cleanJsonStr);
 
-    // 3. Supabase DB에 자동 저장
+    // 3. Supabase DB에 안전하게 접속하여 저장
+    const supabase = getSupabaseClient();
     const { error: insertError } = await supabase.from('reports').insert([
       {
         title: reportData.title,
