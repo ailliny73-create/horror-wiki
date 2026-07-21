@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ShieldAlert, KeyRound, User, ArrowRight, UserPlus } from 'lucide-react';
+import { ShieldAlert, KeyRound, User, ArrowRight, UserPlus, Loader2 } from 'lucide-react';
 
 export default function LoginPage() {
   const [nickname, setNickname] = useState('');
@@ -15,23 +15,31 @@ export default function LoginPage() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (loading) return;
+
     setLoading(true);
     setErrorMsg('');
 
-    const cleanNickname = nickname.trim().toLowerCase();
-    const fakeEmail = `${cleanNickname}@gmail.com`;
+    try {
+      const cleanNickname = nickname.trim().toLowerCase();
+      const fakeEmail = `${cleanNickname}@gmail.com`;
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: fakeEmail,
-      password,
-    });
+      const { error } = await supabase.auth.signInWithPassword({
+        email: fakeEmail,
+        password,
+      });
 
-    if (error) {
-      console.error('Login error detail:', error.message);
-      setErrorMsg('인증 실패: 닉네임 또는 보안 암호를 확인하십시오.');
+      if (error) {
+        console.error('Login Error Detail:', error);
+        setErrorMsg('인증 실패: 닉네임 또는 보안 암호를 확인하십시오.');
+        setLoading(false);
+      } else {
+        router.push('/dashboard');
+      }
+    } catch (err: any) {
+      console.error('Login Exception:', err);
+      setErrorMsg('로그인 연결 오류가 발생했습니다.');
       setLoading(false);
-    } else {
-      router.push('/dashboard');
     }
   };
 
@@ -60,10 +68,11 @@ export default function LoginPage() {
               <input
                 type="text"
                 required
+                disabled={loading}
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
                 placeholder="등록한 닉네임 입력"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
               />
             </div>
           </div>
@@ -75,10 +84,11 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                disabled={loading}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
               />
             </div>
           </div>
@@ -88,8 +98,17 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full bg-red-900 hover:bg-red-800 text-red-100 font-bold py-3 rounded text-xs border border-red-700 flex items-center justify-center space-x-2 transition-all mt-6 cursor-pointer disabled:opacity-50"
           >
-            <span>{loading ? '보안 인증 진행 중...' : '보안 승인 요청'}</span>
-            <ArrowRight className="w-4 h-4" />
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>보안 인증 진행 중...</span>
+              </>
+            ) : (
+              <>
+                <span>보안 승인 요청</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 
