@@ -16,15 +16,20 @@ export default function DashboardPage() {
   }, []);
 
   const fetchReports = async () => {
-    const { data, error } = await supabase
-      .from('reports')
-      .select('*')
-      .order('created_at', { ascending: false });
+    try {
+      const { data, error } = await supabase
+        .from('reports')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setReports(data);
+      if (!error && data) {
+        setReports(data);
+      }
+    } catch (err) {
+      console.error('Fetch error:', err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
