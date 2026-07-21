@@ -65,12 +65,10 @@ export default function DashboardPage() {
         const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원';
         setUserNickname(nickname);
 
-        const isUserAdmin = user.user_metadata?.role === 'ADMIN' || nickname === 'ADMIN' || user.email?.startsWith('admin');
-        if (isUserAdmin) {
-          setIsAdmin(true);
-        }
+        const isUserAdmin = Boolean(user.user_metadata?.role === 'ADMIN' || nickname === 'ADMIN' || user.email?.startsWith('admin'));
+        setIsAdmin(isUserAdmin);
 
-        // 유저 경험치 프로필 불러오기
+        // 유저 경험치 프로필 불러오기 (boolean 타입 명시적 전달)
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
       }
