@@ -135,14 +135,12 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [출석 체크 EXP 안전 누적]
   const handleCheckIn = async () => {
     if (!currentUserId || isCheckedInToday) return;
 
     const todayStr = new Date().toISOString().split('T')[0];
     const addedExp = 20;
 
-    // 1. RPC 함수로 DB 경험치 누적
     const { error: rpcError } = await supabase.rpc('add_user_exp', {
       target_user_id: currentUserId,
       exp_to_add: addedExp,
@@ -153,13 +151,11 @@ export default function DashboardPage() {
       return;
     }
 
-    // 2. 출석 날짜 기록
     await supabase
       .from('user_profiles')
       .update({ last_checkin: todayStr })
       .eq('user_id', currentUserId);
 
-    // 3. UI 상태 업데이트
     const newExp = userExp + addedExp;
     setUserExp(newExp);
     setUserLevel(calculateLevel(newExp, isAdmin));
@@ -296,7 +292,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [댓글 작성 EXP (+5) 안전 누적]
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -308,7 +303,6 @@ export default function DashboardPage() {
 
     setCommentLoading(true);
 
-    // 1. 댓글 DB 추가
     const { error } = await supabase.from('comments').insert([
       {
         report_id: selectedReport.id,
@@ -321,7 +315,6 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
-      // 2. RPC 함수로 +5 EXP 안전 누적
       if (currentUserId) {
         await supabase.rpc('add_user_exp', {
           target_user_id: currentUserId,
@@ -433,10 +426,19 @@ export default function DashboardPage() {
   const targetExp = getNextExpTarget(userExp);
   const expProgressPercent = Math.min(Math.round((userExp / targetExp) * 100), 100);
 
-  const totalReportsCount = reports.length;
+  // 💡 각각의 카테고리별 개수 분리 계산
+  const hazardReportsCount = reports.filter(
+    (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
+  ).length;
+
+  const freeBoardCount = reports.filter(
+    (r) => r.category === '자유 게시판' && !r.is_notice
+  ).length;
+
   const highDangerCount = reports.filter(
     (r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')
   ).length;
+
   const noticeCount = reports.filter((r) => r.is_notice).length;
 
   const filteredReports = reports.filter((report) => {
@@ -712,28 +714,42 @@ export default function DashboardPage() {
 
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        
+        {/* 📊 1. 실시간 현황 통계 위젯 (위험 보고서 / 자유 게시판 분리 4칸 카드) */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* 위험 보고서 카운트 */}
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
-            <Activity className="w-6 h-6 text-red-500" />
+            <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
             <div>
-              <div className="text-[10px] text-neutral-500">{t.totalDocs}</div>
-              <div className="text-base font-bold text-neutral-100">{totalReportsCount}</div>
+              <div className="text-[10px] text-neutral-500">위험 보고서</div>
+              <div className="text-base font-bold text-neutral-100">{hazardReportsCount}건</div>
             </div>
           </div>
 
+          {/* 자유 게시판 카운트 */}
+          <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
+            <Radio className="w-5 h-5 text-blue-400 shrink-0" />
+            <div>
+              <div className="text-[10px] text-neutral-500">자유 게시판</div>
+              <div className="text-base font-bold text-neutral-100">{freeBoardCount}건</div>
+            </div>
+          </div>
+
+          {/* 고위험 비상사태 카운트 */}
           <div className="bg-red-950/40 border border-red-900/60 p-3.5 rounded-lg flex items-center space-x-3">
-            <Flame className="w-6 h-6 text-red-500 animate-pulse" />
+            <Flame className="w-5 h-5 text-red-500 animate-pulse shrink-0" />
             <div>
               <div className="text-[10px] text-red-400">{t.highDanger}</div>
-              <div className="text-base font-bold text-red-300">{highDangerCount} {t.activeCount}</div>
+              <div className="text-base font-bold text-red-300">{highDangerCount}건 발령 중</div>
             </div>
           </div>
 
+          {/* 사령부 긴급 지침 카운트 */}
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
-            <Megaphone className="w-6 h-6 text-yellow-500" />
+            <Megaphone className="w-5 h-5 text-yellow-500 shrink-0" />
             <div>
               <div className="text-[10px] text-neutral-500">{t.activeNotices}</div>
-              <div className="text-base font-bold text-yellow-400">{noticeCount} {t.activeNoticeCount}</div>
+              <div className="text-base font-bold text-yellow-400">{noticeCount}건 활성</div>
             </div>
           </div>
         </div>
