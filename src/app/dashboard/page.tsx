@@ -48,11 +48,16 @@ export default function DashboardPage() {
   const [editDangerLevel, setEditDangerLevel] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 🌐 실시간 번역 상태
-  const [isTranslated, setIsTranslated] = useState(false);
-  const [translatedContent, setTranslatedContent] = useState('');
-  const [translatedTitle, setTranslatedTitle] = useState('');
-  const [translating, setTranslating] = useState(false);
+  // 🌐 상세보기 모달 실시간 번역 상태
+  const [isModalTranslated, setIsModalTranslated] = useState(false);
+  const [modalTranslatedTitle, setModalTranslatedTitle] = useState('');
+  const [modalTranslatedContent, setModalTranslatedContent] = useState('');
+  const [modalTranslating, setModalTranslating] = useState(false);
+
+  // 🌐 게시글 목록 전체 실시간 번역 상태
+  const [isListTranslated, setIsListTranslated] = useState(false);
+  const [listTranslating, setListTranslating] = useState(false);
+  const [translatedMap, setTranslatedMap] = useState<{ [id: string]: { title: string; content: string } }>({});
 
   // 댓글 상태
   const [comments, setComments] = useState<any[]>([]);
@@ -236,32 +241,57 @@ export default function DashboardPage() {
     setEditDangerLevel(report.danger_level || 'LEVEL 1 (경미)');
     setIsEditing(false);
     
-    // 번역 상태 리셋
-    setIsTranslated(false);
-    setTranslatedTitle('');
-    setTranslatedContent('');
+    setIsModalTranslated(false);
+    setModalTranslatedTitle('');
+    setModalTranslatedContent('');
 
     await fetchComments(report.id);
   };
 
-  // 🌐 실시간 한국어 번역 토글 핸들러
-  const handleToggleTranslate = async () => {
+  // 🌐 상세보기 모달 전용 한국어 번역 토글
+  const handleToggleModalTranslate = async () => {
     if (!selectedReport) return;
 
-    if (!isTranslated) {
-      if (!translatedContent) {
-        setTranslating(true);
+    if (!isModalTranslated) {
+      if (!modalTranslatedContent) {
+        setModalTranslating(true);
         const [transTitle, transContent] = await Promise.all([
           translateToKorean(selectedReport.title),
           translateToKorean(selectedReport.content),
         ]);
-        setTranslatedTitle(transTitle);
-        setTranslatedContent(transContent);
-        setTranslating(false);
+        setModalTranslatedTitle(transTitle);
+        setModalTranslatedContent(transContent);
+        setModalTranslating(false);
       }
-      setIsTranslated(true);
+      setIsModalTranslated(true);
     } else {
-      setIsTranslated(false);
+      setIsModalTranslated(false);
+    }
+  };
+
+  // 🌐 게시글 목록 전체 한국어 번역 토글
+  const handleToggleListTranslate = async () => {
+    if (!isListTranslated) {
+      if (Object.keys(translatedMap).length === 0) {
+        setListTranslating(true);
+        const newMap: { [id: string]: { title: string; content: string } } = {};
+
+        for (const report of filteredReports) {
+          const [transTitle, transContent] = await Promise.all([
+            translateToKorean(report.title),
+            translateToKorean(report.content),
+          ]);
+          newMap[report.id] = {
+            title: transTitle,
+            content: transContent,
+          };
+        }
+        setTranslatedMap(newMap);
+        setListTranslating(false);
+      }
+      setIsListTranslated(true);
+    } else {
+      setIsListTranslated(false);
     }
   };
 
@@ -708,6 +738,28 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 🌐 게시글 목록 전체 한국어 번역 제어용 바 */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
+          <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
+            <Languages className="w-4 h-4 text-red-500" />
+            <span>실시간 외국어 게시글 한국어 번역 시스템</span>
+          </div>
+          <button
+            onClick={handleToggleListTranslate}
+            disabled={listTranslating}
+            className="w-full sm:w-auto text-xs bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1.5"
+          >
+            {listTranslating ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-red-400" />
+                <span>목록 실시간 번역 중...</span>
+              </>
+            ) : (
+              <span>{isListTranslated ? '↩️ 원문 목록 보기 (Original)' : '🇰🇷 목록 전체 한국어로 번역하기'}</span>
+            )}
+          </button>
+        </div>
+
         <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
           <div className="relative">
             <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
@@ -752,6 +804,15 @@ export default function DashboardPage() {
               const reqLevel = report.required_level || 5;
               const isRestricted = userLevel > reqLevel;
 
+              // 목록 번역 적용 여부에 따른 제목과 내용
+              const displayTitle = (isListTranslated && translatedMap[report.id]?.title) 
+                ? translatedMap[report.id].title 
+                : report.title;
+
+              const displayContent = (isListTranslated && translatedMap[report.id]?.content) 
+                ? translatedMap[report.id].content 
+                : report.content;
+
               return (
                 <div
                   key={report.id}
@@ -784,7 +845,7 @@ export default function DashboardPage() {
                         <span>보안 {reqLevel}급 인가 필요</span>
                       </span>
 
-                      <h3 className="text-base font-bold text-neutral-100">{report.title}</h3>
+                      <h3 className="text-base font-bold text-neutral-100">{displayTitle}</h3>
                     </div>
 
                     {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
@@ -802,7 +863,7 @@ export default function DashboardPage() {
                   )}
 
                   <p className={`text-xs leading-relaxed line-clamp-2 ${isRestricted ? 'text-red-400/80 font-mono tracking-widest' : 'text-neutral-400'}`}>
-                    {maskText(report.content, reqLevel)}
+                    {maskText(displayContent, reqLevel)}
                   </p>
 
                   {report.tags && report.tags.length > 0 && (
@@ -918,7 +979,7 @@ export default function DashboardPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-start gap-2">
                     <h2 className="text-lg font-bold text-neutral-100">
-                      {isTranslated ? translatedTitle : selectedReport.title}
+                      {isModalTranslated ? modalTranslatedTitle : selectedReport.title}
                     </h2>
                     {!selectedReport.is_notice && selectedReport.danger_level && selectedReport.danger_level !== '일반' && (
                       <span className="bg-red-950 border border-red-900 text-red-400 text-xs px-2.5 py-1 rounded whitespace-nowrap">
@@ -927,24 +988,23 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  {/* 🌐 실시간 한국어 번역 토글 버튼 */}
                   <div className="flex justify-between items-center bg-neutral-950 border border-neutral-800/80 px-3 py-2 rounded">
                     <span className="text-[11px] text-neutral-400 flex items-center space-x-1">
                       <Languages className="w-3.5 h-3.5 text-red-500" />
-                      <span>{isTranslated ? '🌐 한국어 번역 적용 중' : '🌐 다국어 지원 모드'}</span>
+                      <span>{isModalTranslated ? '🌐 한국어 번역 적용 중' : '🌐 다국어 지원 모드'}</span>
                     </span>
                     <button
-                      onClick={handleToggleTranslate}
-                      disabled={translating}
+                      onClick={handleToggleModalTranslate}
+                      disabled={modalTranslating}
                       className="text-[11px] bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-2.5 py-1 rounded transition-all cursor-pointer flex items-center space-x-1"
                     >
-                      {translating ? (
+                      {modalTranslating ? (
                         <>
                           <Loader2 className="w-3 h-3 animate-spin text-red-400" />
                           <span>번역 변환 중...</span>
                         </>
                       ) : (
-                        <span>{isTranslated ? '↩️ 원문 보기 (Original)' : '🇰🇷 한국어로 실시간 번역'}</span>
+                        <span>{isModalTranslated ? '↩️ 원문 보기 (Original)' : '🇰🇷 한국어로 실시간 번역'}</span>
                       )}
                     </button>
                   </div>
@@ -966,7 +1026,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                      {isTranslated ? translatedContent : selectedReport.content}
+                      {isModalTranslated ? modalTranslatedContent : selectedReport.content}
                     </div>
                   )}
 
