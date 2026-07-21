@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio } from 'lucide-react';
+import { FilePlus, ArrowLeft, Send, Loader2, AlertTriangle, MapPin, ImagePlus, Radio, Megaphone } from 'lucide-react';
 
 export default function NewReportPage() {
   const [title, setTitle] = useState('');
@@ -11,10 +11,23 @@ export default function NewReportPage() {
   const [location, setLocation] = useState('');
   const [dangerLevel, setDangerLevel] = useState('LEVEL 1 (경미)');
   const [content, setContent] = useState('');
+  const [isNotice, setIsNotice] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const router = useRouter();
+
+  useEffect(() => {
+    checkAdmin();
+  }, []);
+
+  const checkAdmin = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user && user.user_metadata?.role === 'ADMIN') {
+      setIsAdmin(true);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,11 +68,12 @@ export default function NewReportPage() {
       const { error: insertError } = await supabase.from('reports').insert([
         {
           title: title.trim(),
-          category: category,
+          category: isNotice ? '긴급 공지' : category,
           content: content.trim(),
-          location: category === '위험 보고서' ? (location.trim() || '미상 구역') : '자유 게시판',
-          danger_level: category === '위험 보고서' ? dangerLevel : '일반',
+          location: category === '위험 보고서' && !isNotice ? (location.trim() || '미상 구역') : '사령부 본부',
+          danger_level: category === '위험 보고서' && !isNotice ? dangerLevel : '공지',
           image_url: uploadedImageUrl,
+          is_notice: isNotice,
           user_id: user.id,
           author_nickname: nickname,
         },
@@ -67,12 +81,12 @@ export default function NewReportPage() {
 
       if (insertError) {
         console.error('Insert Error Detail:', insertError);
-        setErrorMsg('보고서 저장 실패: ' + insertError.message);
+        setErrorMsg('문서 저장 실패: ' + insertError.message);
         setLoading(false);
         return;
       }
 
-      alert('게시글이 성공적으로 등록되었습니다.');
+      alert('성공적으로 등록되었습니다.');
       router.push('/dashboard');
     } catch (err: any) {
       console.error('Submit Exception:', err);
@@ -105,36 +119,54 @@ export default function NewReportPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* 게시판 카테고리 선택 */}
-          <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">문서 분류 (카테고리)</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setCategory('위험 보고서')}
-                className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
-                  category === '위험 보고서'
-                    ? 'bg-red-950/80 border-red-700 text-red-300'
-                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                }`}
-              >
-                <AlertTriangle className="w-4 h-4" />
-                <span>위험 보고서 (특무 기밀)</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCategory('자유 게시판')}
-                className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
-                  category === '자유 게시판'
-                    ? 'bg-neutral-800 border-neutral-600 text-neutral-100'
-                    : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
-                }`}
-              >
-                <Radio className="w-4 h-4" />
-                <span>자유 게시판 (요원 소통)</span>
-              </button>
+          {/* ★ 대장님(운영자)에게만 노출되는 긴급 공지 체크박스 */}
+          {isAdmin && (
+            <div className="bg-red-950/40 border border-red-900/80 p-3 rounded flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Megaphone className="w-4 h-4 text-red-500 animate-bounce" />
+                <span className="text-xs font-bold text-red-300">사령부 최고 지침 (최상단 고정 공지사항 등록)</span>
+              </div>
+              <input
+                type="checkbox"
+                checked={isNotice}
+                onChange={(e) => setIsNotice(e.target.checked)}
+                className="w-4 h-4 accent-red-600 cursor-pointer"
+              />
             </div>
-          </div>
+          )}
+
+          {/* 분류 카테고리 */}
+          {!isNotice && (
+            <div>
+              <label className="block text-xs text-neutral-400 mb-1.5">문서 분류 (카테고리)</label>
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCategory('위험 보고서')}
+                  className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
+                    category === '위험 보고서'
+                      ? 'bg-red-950/80 border-red-700 text-red-300'
+                      : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  <span>위험 보고서 (특무 기밀)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCategory('자유 게시판')}
+                  className={`p-3 rounded text-xs font-bold border flex items-center justify-center space-x-2 cursor-pointer transition-all ${
+                    category === '자유 게시판'
+                      ? 'bg-neutral-800 border-neutral-600 text-neutral-100'
+                      : 'bg-neutral-950 border-neutral-800 text-neutral-500 hover:text-neutral-300'
+                  }`}
+                >
+                  <Radio className="w-4 h-4" />
+                  <span>자유 게시판 (요원 소통)</span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 제목 */}
           <div>
@@ -145,13 +177,13 @@ export default function NewReportPage() {
               disabled={loading}
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder={category === '위험 보고서' ? '예: [경고] 제3구역 미확인 생물체 발현 보고' : '예: 오늘자 야간 경계 근무 후기 공유합니다.'}
+              placeholder={isNotice ? '[공지] 특무 사령부 긴급 보안 지침 통보' : '제목을 입력하세요'}
               className="w-full bg-neutral-950 border border-neutral-800 rounded px-4 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50"
             />
           </div>
 
-          {/* 위험 보고서 선택 시에만 위치 & 위험도 표시 */}
-          {category === '위험 보고서' && (
+          {/* 위험 보고서 위치/위험도 */}
+          {!isNotice && category === '위험 보고서' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-neutral-400 mb-1.5">사건 발생 위치/구역</label>
@@ -189,9 +221,9 @@ export default function NewReportPage() {
             </div>
           )}
 
-          {/* 사진 파일 첨부 */}
+          {/* 사진 첨부 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">증거 사진/첨부 이미지 (선택)</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">첨부 이미지 (선택)</label>
             <div className="relative border border-neutral-800 border-dashed rounded-lg p-4 bg-neutral-950 text-center">
               <input
                 type="file"
@@ -219,19 +251,18 @@ export default function NewReportPage() {
 
           {/* 상세 내용 */}
           <div>
-            <label className="block text-xs text-neutral-400 mb-1.5">상세 개요 및 내용</label>
+            <label className="block text-xs text-neutral-400 mb-1.5">상세 내용</label>
             <textarea
               required
               rows={6}
               disabled={loading}
               value={content}
               onChange={(e) => setContent(e.target.value)}
-              placeholder="내용을 상세히 작성하십시오..."
+              placeholder="내용을 작성해 주세요..."
               className="w-full bg-neutral-950 border border-neutral-800 rounded p-4 text-xs text-neutral-200 focus:outline-none focus:border-red-900 disabled:opacity-50 resize-none"
             />
           </div>
 
-          {/* 제출 버튼 */}
           <div className="pt-2 flex justify-end space-x-3">
             <button
               type="button"
@@ -253,7 +284,7 @@ export default function NewReportPage() {
               ) : (
                 <>
                   <Send className="w-3.5 h-3.5" />
-                  <span>문서 제출</span>
+                  <span>{isNotice ? '긴급 공지 전파' : '문서 제출'}</span>
                 </>
               )}
             </button>

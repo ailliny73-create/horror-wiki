@@ -5,19 +5,18 @@ export const dynamic = 'force-dynamic';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, Image as ImageIcon, UserCheck, Filter, Radio } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, Image as ImageIcon, UserCheck, Filter, Radio, Megaphone, Shield } from 'lucide-react';
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState(false);
 
-  // 필터 상태
-  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판'>('전체');
+  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항'>('전체');
   const [dangerFilter, setDangerFilter] = useState<string>('전체');
 
-  // 모달 상태
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
@@ -38,6 +37,9 @@ export default function DashboardPage() {
       if (user) {
         setCurrentUserId(user.id);
         setUserNickname(user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원');
+        if (user.user_metadata?.role === 'ADMIN') {
+          setIsAdmin(true);
+        }
       }
       await fetchReports();
     } catch (err) {
@@ -51,6 +53,7 @@ export default function DashboardPage() {
     const { data, error } = await supabase
       .from('reports')
       .select('*')
+      .order('is_notice', { ascending: false })
       .order('created_at', { ascending: false });
 
     if (!error && data) {
@@ -68,7 +71,7 @@ export default function DashboardPage() {
   };
 
   const handleDelete = async (reportId: string) => {
-    if (!confirm('정말로 이 기밀 문서를 파기(삭제)하시겠습니까?')) return;
+    if (!confirm('정말로 이 문서를 파기(삭제)하시겠습니까?')) return;
     setActionLoading(true);
 
     const { error } = await supabase.from('reports').delete().eq('id', reportId);
@@ -108,14 +111,12 @@ export default function DashboardPage() {
     setActionLoading(false);
   };
 
-  // 필터링된 게시글 목록
   const filteredReports = reports.filter((report) => {
-    // 1. 카테고리 탭 필터
-    if (activeTab === '위험 보고서' && report.category !== '위험 보고서') return false;
-    if (activeTab === '자유 게시판' && report.category !== '자유 게시판') return false;
+    if (activeTab === '공지사항' && !report.is_notice) return false;
+    if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
+    if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
 
-    // 2. 위험도 필터
-    if (dangerFilter !== '전체') {
+    if (dangerFilter !== '전체' && activeTab !== '공지사항') {
       if (!report.danger_level || !report.danger_level.startsWith(dangerFilter)) return false;
     }
 
@@ -133,12 +134,11 @@ export default function DashboardPage() {
             <h1 className="text-xl font-bold text-red-600 tracking-wider">특무 요원 기밀 대시보드</h1>
           </div>
 
-          {/* 접속 중인 요원 정보 & 로그아웃 */}
           <div className="flex items-center space-x-3">
             {userNickname && (
               <div className="bg-neutral-900 border border-neutral-800 px-3 py-1.5 rounded text-xs text-neutral-300 flex items-center space-x-2">
-                <UserCheck className="w-3.5 h-3.5 text-red-500" />
-                <span>접속 요원: <strong className="text-red-400">{userNickname}</strong></span>
+                {isAdmin ? <Shield className="w-4 h-4 text-yellow-500 animate-bounce" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
+                <span>요원: <strong className={isAdmin ? 'text-yellow-400 font-bold' : 'text-red-400'}>{userNickname} {isAdmin && '(사령관)'}</strong></span>
               </div>
             )}
             <button
@@ -154,9 +154,8 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 게시판 카테고리 탭 & 작성 버튼 */}
+        {/* 게시판 탭 & 새 문서 작성 버튼 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          {/* 카테고리 탭 */}
           <div className="flex items-center space-x-1 bg-neutral-900/80 p-1 rounded-lg border border-neutral-800">
             <button
               onClick={() => setActiveTab('전체')}
@@ -165,6 +164,15 @@ export default function DashboardPage() {
               }`}
             >
               전체 보기
+            </button>
+            <button
+              onClick={() => setActiveTab('공지사항')}
+              className={`px-3 py-1.5 rounded text-xs font-bold cursor-pointer transition-colors flex items-center space-x-1 ${
+                activeTab === '공지사항' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Megaphone className="w-3.5 h-3.5 text-yellow-400" />
+              <span>긴급 공지</span>
             </button>
             <button
               onClick={() => setActiveTab('위험 보고서')}
@@ -195,8 +203,8 @@ export default function DashboardPage() {
           </button>
         </div>
 
-        {/* 위험도 필터 서브 바 (위험 보고서 탭 또는 전체 탭 일때만 유효) */}
-        {activeTab !== '자유 게시판' && (
+        {/* 위험도 필터 */}
+        {activeTab !== '자유 게시판' && activeTab !== '공지사항' && (
           <div className="bg-neutral-900/40 border border-neutral-800/80 p-3 rounded-lg flex flex-wrap items-center gap-2">
             <span className="text-xs text-neutral-500 flex items-center space-x-1 mr-2">
               <Filter className="w-3.5 h-3.5 text-red-600" />
@@ -224,7 +232,7 @@ export default function DashboardPage() {
         ) : filteredReports.length === 0 ? (
           <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
             <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
-            <p>조건에 부합하는 문서가 존재하지 않습니다.</p>
+            <p>등록된 문서가 존재하지 않습니다.</p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -232,17 +240,28 @@ export default function DashboardPage() {
               <div
                 key={report.id}
                 onClick={() => handleOpenDetail(report)}
-                className="bg-neutral-900/80 border border-neutral-800 hover:border-red-900/80 p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.01]"
+                className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.01] ${
+                  report.is_notice
+                    ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20'
+                    : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
+                }`}
               >
                 <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
                   <div className="flex items-center space-x-2">
-                    <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
-                      {report.category || '위험 보고서'}
-                    </span>
+                    {report.is_notice ? (
+                      <span className="text-xs px-2.5 py-0.5 rounded bg-red-900 text-yellow-300 font-bold flex items-center space-x-1 animate-pulse">
+                        <Megaphone className="w-3 h-3" />
+                        <span>사령부 긴급 공지</span>
+                      </span>
+                    ) : (
+                      <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
+                        {report.category || '위험 보고서'}
+                      </span>
+                    )}
                     <h3 className="text-base font-bold text-neutral-100">{report.title}</h3>
                   </div>
 
-                  {report.danger_level && report.danger_level !== '일반' && (
+                  {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
                     <span className="bg-red-950/80 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
                       {report.danger_level}
                     </span>
@@ -268,7 +287,7 @@ export default function DashboardPage() {
                 )}
 
                 <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
-                  <span>작성 요원: <strong className="text-neutral-400">{report.author_nickname || '익명 요원'}</strong></span>
+                  <span>발령 요원: <strong className="text-neutral-400">{report.author_nickname || '익명 요원'}</strong></span>
                   <span>{new Date(report.created_at).toLocaleString()}</span>
                 </div>
               </div>
@@ -283,7 +302,7 @@ export default function DashboardPage() {
           <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-5">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
               <span className="text-xs text-red-500 font-bold tracking-wider">
-                [{selectedReport.category || '기밀 문서'}] 상세 열람
+                [{selectedReport.is_notice ? '사령부 공지사항' : selectedReport.category || '기밀 문서'}] 상세 열람
               </span>
               <button
                 onClick={() => setSelectedReport(null)}
@@ -304,7 +323,7 @@ export default function DashboardPage() {
                     className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200"
                   />
                 </div>
-                {selectedReport.category === '위험 보고서' && (
+                {!selectedReport.is_notice && selectedReport.category === '위험 보고서' && (
                   <>
                     <div>
                       <label className="block text-xs text-neutral-400 mb-1">발생 장소</label>
@@ -361,7 +380,7 @@ export default function DashboardPage() {
               <div className="space-y-4">
                 <div className="flex justify-between items-start gap-2">
                   <h2 className="text-lg font-bold text-neutral-100">{selectedReport.title}</h2>
-                  {selectedReport.danger_level && selectedReport.danger_level !== '일반' && (
+                  {!selectedReport.is_notice && selectedReport.danger_level && selectedReport.danger_level !== '일반' && (
                     <span className="bg-red-950 border border-red-900 text-red-400 text-xs px-2.5 py-1 rounded whitespace-nowrap">
                       {selectedReport.danger_level}
                     </span>
@@ -391,11 +410,11 @@ export default function DashboardPage() {
                 )}
 
                 <div className="text-[11px] text-neutral-500 border-t border-neutral-800 pt-3 flex justify-between items-center">
-                  <span>작성자: {selectedReport.author_nickname || '익명 요원'}</span>
+                  <span>발령자: {selectedReport.author_nickname || '익명 요원'}</span>
                   <span>{new Date(selectedReport.created_at).toLocaleString()}</span>
                 </div>
 
-                {currentUserId && currentUserId === selectedReport.user_id && (
+                {(isAdmin || (currentUserId && currentUserId === selectedReport.user_id)) && (
                   <div className="flex justify-end space-x-2 border-t border-neutral-800 pt-3">
                     <button
                       onClick={() => setIsEditing(true)}
