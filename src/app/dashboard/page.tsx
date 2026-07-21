@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown } from 'lucide-react';
+import { translateToKorean } from '@/lib/translate';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -23,7 +24,7 @@ export default function DashboardPage() {
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // 🚨 괴이 404 신호 간섭 상태 (10건, 50건, 100건, 150건... 마일스톤)
+  // 🚨 괴이 404 신호 간섭 상태
   const [showFake404, setShowFake404] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [currentMilestone, setCurrentMilestone] = useState<number>(10);
@@ -46,6 +47,12 @@ export default function DashboardPage() {
   const [editLocation, setEditLocation] = useState('');
   const [editDangerLevel, setEditDangerLevel] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+
+  // 🌐 실시간 번역 상태
+  const [isTranslated, setIsTranslated] = useState(false);
+  const [translatedContent, setTranslatedContent] = useState('');
+  const [translatedTitle, setTranslatedTitle] = useState('');
+  const [translating, setTranslating] = useState(false);
 
   // 댓글 상태
   const [comments, setComments] = useState<any[]>([]);
@@ -186,12 +193,10 @@ export default function DashboardPage() {
     if (!error && data) {
       setReports(data);
 
-      // 💡 위험 보고서 개수 계산
       const hazardReportsCount = data.filter(
         (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
       ).length;
 
-      // 💡 임계치 계산 (10, 50, 100, 150, 200 ... 50건 단위)
       let milestone = 0;
       if (hazardReportsCount >= 50) {
         milestone = Math.floor(hazardReportsCount / 50) * 50;
@@ -199,7 +204,6 @@ export default function DashboardPage() {
         milestone = 10;
       }
 
-      // 💡 해당 마일스톤에 처음 도달했을 때만 404 괴이 간섭 발동!
       if (milestone > 0 && !sessionStorage.getItem(`anomaly_404_shown_${milestone}`)) {
         setCurrentMilestone(milestone);
         setShowFake404(true);
@@ -231,7 +235,34 @@ export default function DashboardPage() {
     setEditLocation(report.location || '');
     setEditDangerLevel(report.danger_level || 'LEVEL 1 (경미)');
     setIsEditing(false);
+    
+    // 번역 상태 리셋
+    setIsTranslated(false);
+    setTranslatedTitle('');
+    setTranslatedContent('');
+
     await fetchComments(report.id);
+  };
+
+  // 🌐 실시간 한국어 번역 토글 핸들러
+  const handleToggleTranslate = async () => {
+    if (!selectedReport) return;
+
+    if (!isTranslated) {
+      if (!translatedContent) {
+        setTranslating(true);
+        const [transTitle, transContent] = await Promise.all([
+          translateToKorean(selectedReport.title),
+          translateToKorean(selectedReport.content),
+        ]);
+        setTranslatedTitle(transTitle);
+        setTranslatedContent(transContent);
+        setTranslating(false);
+      }
+      setIsTranslated(true);
+    } else {
+      setIsTranslated(false);
+    }
   };
 
   const fetchComments = async (reportId: string) => {
@@ -372,14 +403,12 @@ export default function DashboardPage() {
   const targetExp = getNextExpTarget(userExp);
   const expProgressPercent = Math.min(Math.round((userExp / targetExp) * 100), 100);
 
-  // 통계 계산
   const totalReportsCount = reports.length;
   const highDangerCount = reports.filter(
     (r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')
   ).length;
   const noticeCount = reports.filter((r) => r.is_notice).length;
 
-  // 필터링 적용
   const filteredReports = reports.filter((report) => {
     if (activeTab === '공지사항' && !report.is_notice) return false;
     if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
@@ -448,7 +477,6 @@ export default function DashboardPage() {
       {/* 📌 좌측 사이드바 패널 */}
       <aside className="w-full md:w-64 bg-neutral-900/90 border-r border-neutral-800 p-5 flex flex-col justify-between shrink-0 space-y-6">
         <div className="space-y-6">
-          {/* 로고 영역 */}
           <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
             <div className="flex items-center space-x-3">
               <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0" />
@@ -472,7 +500,6 @@ export default function DashboardPage() {
                 )}
               </button>
 
-              {/* 알림 드롭다운 */}
               {showNotiDropdown && (
                 <div className="absolute left-0 sm:left-auto sm:right-0 mt-2 w-72 bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl z-50 p-3 space-y-2">
                   <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
@@ -520,7 +547,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 한/영 언어 토글 및 유저 계급 프로필 */}
           <div className="space-y-2">
             <button
               onClick={() => setLang(lang === 'kr' ? 'en' : 'kr')}
@@ -533,7 +559,6 @@ export default function DashboardPage() {
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
-            {/* 👑 ADMIN 전용 계급 표기 적용 영역 */}
             {userNickname && (
               <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded text-xs space-y-3">
                 <div className="flex justify-between items-center text-[10px] text-neutral-500">
@@ -555,7 +580,6 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                {/* 경험치 프로그레스 바 */}
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] text-neutral-500">
                     <span>Target Clearance</span>
@@ -569,7 +593,6 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {/* 📅 일일 출석 체크 버튼 */}
                 <button
                   onClick={handleCheckIn}
                   disabled={isCheckedInToday}
@@ -586,7 +609,6 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* 새 문서 작성 버튼 */}
           <button
             onClick={() => router.push('/new-report')}
             className="w-full bg-red-900 hover:bg-red-800 text-white text-xs py-3 rounded font-bold border border-red-700 flex items-center justify-center space-x-2 cursor-pointer shadow-lg shadow-red-950/50 transition-all hover:scale-[1.02]"
@@ -595,7 +617,6 @@ export default function DashboardPage() {
             <span>{t.newDocument}</span>
           </button>
 
-          {/* 탭 내비게이션 메뉴 */}
           <nav className="space-y-1">
             <div className="text-[10px] text-neutral-500 px-2 py-1 font-bold">CATEGORIES</div>
             {[
@@ -622,7 +643,6 @@ export default function DashboardPage() {
             })}
           </nav>
 
-          {/* 위험도 필터 */}
           {activeTab !== '자유 게시판' && activeTab !== '공지사항' && (
             <div className="space-y-2 pt-2 border-t border-neutral-800">
               <span className="text-[10px] text-neutral-500 flex items-center space-x-1 font-bold">
@@ -648,7 +668,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 하단 로그아웃 */}
         <button
           onClick={async () => {
             await supabase.auth.signOut();
@@ -663,8 +682,6 @@ export default function DashboardPage() {
 
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
-        
-        {/* 📊 1. 실시간 현황 통계 위젯 */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <Activity className="w-6 h-6 text-red-500" />
@@ -691,7 +708,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 🔍 2. 검색창 및 태그 필터 */}
         <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
           <div className="relative">
             <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
@@ -723,7 +739,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        {/* 보고서 목록 */}
         {loading ? (
           <div className="text-center text-xs text-neutral-500 py-16">Loading Classified Database...</div>
         ) : filteredReports.length === 0 ? (
@@ -902,12 +917,36 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <div className="space-y-3">
                   <div className="flex justify-between items-start gap-2">
-                    <h2 className="text-lg font-bold text-neutral-100">{selectedReport.title}</h2>
+                    <h2 className="text-lg font-bold text-neutral-100">
+                      {isTranslated ? translatedTitle : selectedReport.title}
+                    </h2>
                     {!selectedReport.is_notice && selectedReport.danger_level && selectedReport.danger_level !== '일반' && (
                       <span className="bg-red-950 border border-red-900 text-red-400 text-xs px-2.5 py-1 rounded whitespace-nowrap">
                         {selectedReport.danger_level}
                       </span>
                     )}
+                  </div>
+
+                  {/* 🌐 실시간 한국어 번역 토글 버튼 */}
+                  <div className="flex justify-between items-center bg-neutral-950 border border-neutral-800/80 px-3 py-2 rounded">
+                    <span className="text-[11px] text-neutral-400 flex items-center space-x-1">
+                      <Languages className="w-3.5 h-3.5 text-red-500" />
+                      <span>{isTranslated ? '🌐 한국어 번역 적용 중' : '🌐 다국어 지원 모드'}</span>
+                    </span>
+                    <button
+                      onClick={handleToggleTranslate}
+                      disabled={translating}
+                      className="text-[11px] bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-2.5 py-1 rounded transition-all cursor-pointer flex items-center space-x-1"
+                    >
+                      {translating ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin text-red-400" />
+                          <span>번역 변환 중...</span>
+                        </>
+                      ) : (
+                        <span>{isTranslated ? '↩️ 원문 보기 (Original)' : '🇰🇷 한국어로 실시간 번역'}</span>
+                      )}
+                    </button>
                   </div>
 
                   {selectedReport.location && selectedReport.location !== '자유 게시판' && (
@@ -927,7 +966,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                      {selectedReport.content}
+                      {isTranslated ? translatedContent : selectedReport.content}
                     </div>
                   )}
 
