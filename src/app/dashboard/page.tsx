@@ -23,9 +23,10 @@ export default function DashboardPage() {
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // 🚨 괴이 404 신호 간섭 상태
+  // 🚨 괴이 404 신호 간섭 상태 (10건, 50건, 100건, 150건... 마일스톤)
   const [showFake404, setShowFake404] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [currentMilestone, setCurrentMilestone] = useState<number>(10);
 
   // 🔔 알림 상태
   const [notifications, setNotifications] = useState<any[]>([]);
@@ -68,7 +69,6 @@ export default function DashboardPage() {
         const isUserAdmin = Boolean(user.user_metadata?.role === 'ADMIN' || nickname === 'ADMIN' || user.email?.startsWith('admin'));
         setIsAdmin(isUserAdmin);
 
-        // 유저 경험치 프로필 불러오기 (boolean 타입 명시적 전달)
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
       }
@@ -186,9 +186,24 @@ export default function DashboardPage() {
     if (!error && data) {
       setReports(data);
 
-      if (data.length >= 10 && !sessionStorage.getItem('anomaly_404_shown')) {
+      // 💡 위험 보고서 개수 계산
+      const hazardReportsCount = data.filter(
+        (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
+      ).length;
+
+      // 💡 임계치 계산 (10, 50, 100, 150, 200 ... 50건 단위)
+      let milestone = 0;
+      if (hazardReportsCount >= 50) {
+        milestone = Math.floor(hazardReportsCount / 50) * 50;
+      } else if (hazardReportsCount >= 10) {
+        milestone = 10;
+      }
+
+      // 💡 해당 마일스톤에 처음 도달했을 때만 404 괴이 간섭 발동!
+      if (milestone > 0 && !sessionStorage.getItem(`anomaly_404_shown_${milestone}`)) {
+        setCurrentMilestone(milestone);
         setShowFake404(true);
-        sessionStorage.setItem('anomaly_404_shown', 'true');
+        sessionStorage.setItem(`anomaly_404_shown_${milestone}`, 'true');
 
         setTimeout(() => {
           setIsRestoring(true);
@@ -413,7 +428,7 @@ export default function DashboardPage() {
             <div className="bg-neutral-950 border border-red-900/40 p-4 rounded text-left text-xs text-red-300/90 leading-relaxed space-y-2">
               <p className="font-bold text-yellow-500">⚠️ [사령부 자동 감지 로그]</p>
               <p>
-                "축적된 기밀 데이터가 특수 임계치(10건 이상)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
+                "축적된 위험 보고서 데이터가 특수 임계치(<span className="font-extrabold text-red-400">{currentMilestone}건 이상</span>)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
               </p>
               <p className="text-[11px] text-neutral-400 italic">
                 - 수신된 수수께끼 음성: "우리를 더 많이 기억할수록... 문은 더 빨리 열린다..."
