@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -18,6 +18,11 @@ export default function DashboardPage() {
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
   
+  // ✏️ 닉네임 수정 상태
+  const [isEditingNickname, setIsEditingNickname] = useState(false);
+  const [newNickname, setNewNickname] = useState('');
+  const [savingNickname, setSavingNickname] = useState(false);
+
   // 🎮 유저 경험치 및 등급 상태
   const [userExp, setUserExp] = useState<number>(0);
   const [userLevel, setUserLevel] = useState<number>(5); // 1급 ~ 5급
@@ -77,6 +82,7 @@ export default function DashboardPage() {
         setCurrentUserId(user.id);
         const nickname = user.user_metadata?.nickname || user.email?.split('@')[0] || '특무 요원';
         setUserNickname(nickname);
+        setNewNickname(nickname);
 
         const isUserAdmin = Boolean(user.user_metadata?.role === 'ADMIN' || nickname === 'ADMIN' || user.email?.startsWith('admin'));
         setIsAdmin(isUserAdmin);
@@ -132,6 +138,39 @@ export default function DashboardPage() {
       ]);
       setUserExp(initialExp);
       setUserLevel(initialLevel);
+    }
+  };
+
+  // ✏️ [닉네임 변경 처리 함수]
+  const handleSaveNickname = async () => {
+    if (!newNickname.trim() || !currentUserId) return;
+    if (newNickname.trim() === userNickname) {
+      setIsEditingNickname(false);
+      return;
+    }
+
+    setSavingNickname(true);
+    try {
+      const { error: authError } = await supabase.auth.updateUser({
+        data: { nickname: newNickname.trim() },
+      });
+
+      if (authError) throw authError;
+
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .update({ nickname: newNickname.trim() })
+        .eq('user_id', currentUserId);
+
+      if (profileError) throw profileError;
+
+      setUserNickname(newNickname.trim());
+      setIsEditingNickname(false);
+      alert('🔒 요원 호칭(닉네임)이 성공적으로 변경되었습니다!');
+    } catch (err: any) {
+      alert('닉네임 변경 실패: ' + err.message);
+    } finally {
+      setSavingNickname(false);
     }
   };
 
@@ -426,7 +465,6 @@ export default function DashboardPage() {
   const targetExp = getNextExpTarget(userExp);
   const expProgressPercent = Math.min(Math.round((userExp / targetExp) * 100), 100);
 
-  // 💡 각각의 카테고리별 개수 분리 계산
   const hazardReportsCount = reports.filter(
     (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
   ).length;
@@ -591,6 +629,7 @@ export default function DashboardPage() {
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
 
+            {/* ✏️ 유저 계급 및 닉네임 수정 패널 */}
             {userNickname && (
               <div className="bg-neutral-950 border border-neutral-800 p-3.5 rounded text-xs space-y-3">
                 <div className="flex justify-between items-center text-[10px] text-neutral-500">
@@ -601,15 +640,56 @@ export default function DashboardPage() {
                   </span>
                 </div>
 
-                <div className="flex items-center justify-between font-bold border-b border-neutral-900 pb-2">
-                  <div className="flex items-center space-x-1.5">
-                    {isAdmin ? <Crown className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                    <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>{userNickname}</span>
-                  </div>
-                  <span className="text-[10px] text-red-400 flex items-center space-x-0.5">
-                    <Zap className="w-3 h-3" />
-                    <span>{userExp} EXP</span>
-                  </span>
+                {/* 닉네임 표기 & 인라인 수정 폼 */}
+                <div className="border-b border-neutral-900 pb-2 space-y-1">
+                  {isEditingNickname ? (
+                    <div className="flex items-center space-x-1.5 pt-1">
+                      <input
+                        type="text"
+                        value={newNickname}
+                        onChange={(e) => setNewNickname(e.target.value)}
+                        placeholder="새 요원 호칭 입력"
+                        className="w-full bg-neutral-900 border border-neutral-700 rounded px-2 py-1 text-xs text-neutral-200 focus:outline-none focus:border-red-600"
+                        autoFocus
+                      />
+                      <button
+                        onClick={handleSaveNickname}
+                        disabled={savingNickname}
+                        className="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 p-1.5 rounded cursor-pointer shrink-0"
+                      >
+                        {savingNickname ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsEditingNickname(false);
+                          setNewNickname(userNickname);
+                        }}
+                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-400 p-1.5 rounded cursor-pointer shrink-0"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between font-bold">
+                      <div className="flex items-center space-x-1.5">
+                        {isAdmin ? <Crown className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
+                        <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>{userNickname}</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <span className="text-[10px] text-red-400 flex items-center space-x-0.5">
+                          <Zap className="w-3 h-3" />
+                          <span>{userExp} EXP</span>
+                        </span>
+                        <button
+                          onClick={() => setIsEditingNickname(true)}
+                          title="닉네임 변경"
+                          className="text-neutral-500 hover:text-red-400 cursor-pointer transition-colors p-0.5"
+                        >
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-1">
@@ -715,9 +795,8 @@ export default function DashboardPage() {
       {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 📊 1. 실시간 현황 통계 위젯 (위험 보고서 / 자유 게시판 분리 4칸 카드) */}
+        {/* 📊 1. 실시간 현황 통계 위젯 (아이콘 클로징 완료) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* 위험 보고서 카운트 */}
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
             <div>
@@ -726,7 +805,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 자유 게시판 카운트 */}
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <Radio className="w-5 h-5 text-blue-400 shrink-0" />
             <div>
@@ -735,7 +813,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 고위험 비상사태 카운트 */}
           <div className="bg-red-950/40 border border-red-900/60 p-3.5 rounded-lg flex items-center space-x-3">
             <Flame className="w-5 h-5 text-red-500 animate-pulse shrink-0" />
             <div>
@@ -744,7 +821,6 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* 사령부 긴급 지침 카운트 */}
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <Megaphone className="w-5 h-5 text-yellow-500 shrink-0" />
             <div>
