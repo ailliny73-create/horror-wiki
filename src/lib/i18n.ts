@@ -28,6 +28,8 @@ export const translations = {
     commentPlaceholder: '현장 조치 의견 및 상황 추가 기록...',
     send: '전송',
     noComments: '등록된 현장 의견이 없습니다.',
+    clearance: '보안 인가 등급',
+    restricted: '⚠️ [보안 등급 미달] 해당 기밀 데이터는 접근 권한이 제한되어 마스킹 처리되었습니다.',
   },
   en: {
     title: 'Special Ops Classified Dashboard',
@@ -56,5 +58,7 @@ export const translations = {
     commentPlaceholder: 'Enter field feedback or situation log...',
     send: 'Submit',
     noComments: 'No field feedback recorded.',
+    clearance: 'Security Clearance Level',
+    restricted: '⚠️ [ACCESS DENIED] Classified content masked due to insufficient security clearance.',
   },
 };
