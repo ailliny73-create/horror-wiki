@@ -512,7 +512,7 @@ export default function DashboardPage() {
             >
               <span className="flex items-center space-x-2">
                 <Globe className="w-3.5 h-3.5 text-red-500" />
-                <span>{t.language}</span>
+                <span>LANGUAGE</span>
               </span>
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
