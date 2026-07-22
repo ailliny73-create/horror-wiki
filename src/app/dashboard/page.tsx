@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User, Film } from 'lucide-react';
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
@@ -63,7 +63,9 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항' | '내 기록'>('전체');
+  
+  // 💡 [수정] activeTab 타입에 '시리즈물 제작' 추가
+  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '시리즈물 제작' | '공지사항' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
   const [dangerFilter, setDangerFilter] = useState<string>('전체');
@@ -551,7 +553,6 @@ export default function DashboardPage() {
     if (!error && data) setComments(data);
   };
 
-  // 💡 [수정] 모바일 최적화 및 폼 전송 핸들러
   const handleAddComment = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
@@ -714,6 +715,7 @@ export default function DashboardPage() {
 
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
+  // 💡 [수정] 시리즈물 제작 카테고리 필터링 로직 정밀 적용
   const filteredReports = reports.filter((report) => {
     if (activeTab === '내 기록') {
       if (report.user_id !== currentUserId) return false;
@@ -722,9 +724,10 @@ export default function DashboardPage() {
       if (activeTab === '공지사항' && !report.is_notice) return false;
       if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
       if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
+      if (activeTab === '시리즈물 제작' && (report.category !== '시리즈물 제작' || report.is_notice)) return false;
     }
 
-    if (dangerFilter !== '전체' && activeTab !== '공지사항' && activeTab !== '내 기록') {
+    if (dangerFilter !== '전체' && activeTab !== '공지사항' && activeTab !== '내 기록' && activeTab !== '시리즈물 제작') {
       if (!report.danger_level || !report.danger_level.startsWith(dangerFilter)) return false;
     }
 
@@ -964,11 +967,14 @@ export default function DashboardPage() {
 
           <nav className="space-y-1">
             <div className="text-[10px] text-neutral-500 px-2 py-1 font-bold">CATEGORIES</div>
+            
+            {/* 💡 [수정] '시리즈물 제작' 카테고리를 사이드바 탭 목록에 추가 */}
             {[
               { id: '전체', name: t.all, icon: Activity },
               { id: '공지사항', name: t.notice, icon: Megaphone },
               { id: '위험 보고서', name: t.report, icon: AlertCircle },
               { id: '자유 게시판', name: t.freeBoard, icon: Radio },
+              { id: '시리즈물 제작', name: '🎬 시리즈물 제작', icon: Film },
               { id: '내 기록', name: `내 기록 (${userReportCount}건)`, icon: User },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -1011,7 +1017,7 @@ export default function DashboardPage() {
             </button>
           </nav>
 
-          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && activeTab !== '내 기록' && !showSuggestionsToggle && (
+          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && activeTab !== '내 기록' && activeTab !== '시리즈물 제작' && !showSuggestionsToggle && (
             <div className="space-y-2 pt-2 border-t border-neutral-800">
               <span className="text-[10px] text-neutral-500 flex items-center space-x-1 font-bold">
                 <Filter className="w-3 h-3 text-red-600" />
@@ -1142,7 +1148,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 💡 [수정] 모바일에서도 지도와 오늘의 운세(생존 테스트)가 완벽히 표시되도록 가시성 강화 */}
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2 order-1">
@@ -1332,7 +1337,7 @@ export default function DashboardPage() {
                         )}
                       </div>
 
-                      {report.location && report.location !== '자유 게시판' && (
+                      {report.location && report.location !== '자유 게시판' && report.category !== '시리즈물 제작' && (
                         <div className="text-xs text-neutral-400 flex items-center space-x-1.5">
                           <MapPin className="w-3.5 h-3.5 text-neutral-500" />
                           <span>{t.location}: {renderMaskedText(report.location, `loc-${report.id}`)}</span>
@@ -1578,7 +1583,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  {selectedReport.location && selectedReport.location !== '자유 게시판' && (
+                  {selectedReport.location && selectedReport.location !== '자유 게시판' && selectedReport.category !== '시리즈물 제작' && (
                     <div className="text-xs text-neutral-400 flex items-center space-x-1">
                       <MapPin className="w-3.5 h-3.5 text-neutral-500" />
                       <span>{t.location}: {renderMaskedText(selectedReport.location, `modal-loc-${selectedReport.id}`)}</span>
@@ -1623,7 +1628,6 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* 💡 [모바일 최적화] 댓글 입력 및 제출 폼 영역 */}
                 <div className="border-t border-neutral-800 pt-5 space-y-4">
                   <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
                     <MessageSquare className="w-4 h-4 text-red-600" />
