@@ -56,7 +56,6 @@ export default function NewReportPage() {
 
       const tags = tagsInput.split(',').map((tag) => tag.trim().replace(/^#/, '')).filter((tag) => tag.length > 0);
 
-      // 💡 [건의사항] 선택 시 suggestions 테이블로 분기
       if (category === '건의사항 (비공개)') {
         const { error } = await supabase.from('suggestions').insert([
           {
@@ -68,25 +67,30 @@ export default function NewReportPage() {
         ]);
         if (error) throw error;
       } else {
-        // 💡 [나머지 카테고리] reports 테이블로 전송
+        // 💡 [핵심] 공지사항인 경우 1시간 뒤 자동 파기되도록 expires_at 설정
+        const isNotice = category === '공지사항';
+        const expiresAt = isNotice 
+          ? new Date(new Date().getTime() + 60 * 60 * 1000).toISOString() 
+          : null;
+
         const { error } = await supabase.from('reports').insert([
           {
             user_id: currentUser.id,
             author_nickname: userNickname,
             title: title.trim(),
             content: content.trim(),
-            category: category === '공지사항' ? '공지사항' : category,
+            category: isNotice ? '공지사항' : category,
             location: category === '위험 보고서' ? location.trim() : null,
             danger_level: category === '위험 보고서' ? dangerLevel : null,
             tags: tags,
             image_url: imageUrl,
-            is_notice: category === '공지사항', // 공지사항 탭 선택 시 자동으로 true 처리
+            is_notice: isNotice,
+            expires_at: expiresAt, // 1시간 뒤 자동 삭제 기한
           }
         ]);
         if (error) throw error;
       }
 
-      // 💡 문서 작성 시 15 EXP 추가 로직
       await supabase.rpc('add_user_exp', { target_user_id: currentUser.id, exp_to_add: 15 });
 
       alert('문서가 성공적으로 등록되었습니다. (+15 EXP)');
@@ -98,7 +102,6 @@ export default function NewReportPage() {
     }
   };
 
-  // 💡 버튼 탭 목록 설정
   const categoryOptions = [
     { id: '위험 보고서', label: '🚨 위험 보고서' },
     { id: '자유 게시판', label: '📻 자유 게시판' },
@@ -124,8 +127,6 @@ export default function NewReportPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="bg-[#111] border border-neutral-800 p-5 sm:p-8 rounded-lg space-y-6 shadow-xl">
-          
-          {/* 💡 [복원] 세련된 카테고리 버튼 UI */}
           <div className="space-y-2">
             <label className="block text-xs text-neutral-400 font-bold">문서 분류 (Category)</label>
             <div className="flex flex-wrap gap-2">

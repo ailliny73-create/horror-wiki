@@ -7,12 +7,12 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User, Film, Eye } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User, Film, Eye, RadioTower } from 'lucide-react';
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
-import ActiveAgentsWidget from '@/components/ActiveAgentsWidget'; // 💡 실시간 접속자 위젯 임포트 추가
+import ActiveAgentsWidget from '@/components/ActiveAgentsWidget';
 
 const getKSTDateString = () => {
   const now = new Date();
@@ -355,12 +355,28 @@ export default function DashboardPage() {
     if (data) setNotifications(data);
   };
 
+  // 💡 [자동 파기 로직] 1시간이 지난 공지사항은 자동으로 삭제 처리
   const fetchReports = async () => {
     const { data, error } = await supabase.from('reports').select('*').order('is_notice', { ascending: false }).order('created_at', { ascending: false });
 
     if (!error && data) {
-      setReports(data);
-      const hazardReportsCount = data.filter((r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice).length;
+      const now = new Date().getTime();
+      const validReports: any[] = [];
+
+      for (const report of data) {
+        if (report.is_notice && report.expires_at) {
+          const expireTime = new Date(report.expires_at).getTime();
+          if (now > expireTime) {
+            await supabase.from('reports').delete().eq('id', report.id);
+            continue;
+          }
+        }
+        validReports.push(report);
+      }
+
+      setReports(validReports);
+
+      const hazardReportsCount = validReports.filter((r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice).length;
       const validMilestones = [10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
 
       if (validMilestones.includes(hazardReportsCount)) {
@@ -720,6 +736,8 @@ export default function DashboardPage() {
   const freeBoardCount = reports.filter((r) => r.category === '자유 게시판' && !r.is_notice).length;
   const highDangerCount = reports.filter((r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')).length;
   const noticeCount = reports.filter((r) => r.is_notice).length;
+
+  const activeNotices = reports.filter((r) => r.is_notice);
 
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
@@ -1119,6 +1137,30 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4 sm:p-6 space-y-6 max-w-5xl mx-auto w-full">
         
+        {/* 상단 노란색 전광판 */}
+        {activeNotices.length > 0 && (
+          <div className="bg-yellow-950/40 border border-yellow-700/80 rounded-lg p-3 flex items-center space-x-3 overflow-hidden shadow-lg shadow-yellow-950/20">
+            <div className="flex items-center space-x-1.5 shrink-0 bg-yellow-900/80 text-yellow-200 text-xs font-extrabold px-2.5 py-1 rounded animate-pulse">
+              <RadioTower className="w-4 h-4 text-yellow-300" />
+              <span>긴급 사령부 브리핑</span>
+            </div>
+            <div className="overflow-hidden whitespace-nowrap w-full relative">
+              <div className="inline-block animate-[marquee_25s_linear_infinite] text-xs font-bold text-yellow-300 space-x-12">
+                {activeNotices.map((notice) => (
+                  <span 
+                    key={notice.id} 
+                    onClick={() => handleOpenDetail(notice)} 
+                    className="cursor-pointer hover:underline inline-flex items-center space-x-2"
+                  >
+                    <span>📢 [{notice.title}]</span>
+                    <span className="text-[10px] text-yellow-500 font-normal">({new Date(notice.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 발령)</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
@@ -1159,7 +1201,6 @@ export default function DashboardPage() {
               <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
             
-            {/* 💡 [우측 영역] 생존 테스트 아래에 실시간 접속자 위젯 장착 완료 */}
             <div className="order-2 w-full space-y-4">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
               <ActiveAgentsWidget currentUserId={currentUserId} userNickname={userNickname} />
@@ -1392,6 +1433,7 @@ export default function DashboardPage() {
         )}
       </main>
 
+      {/* 기타 모달 창들 생략 없이 유지됨 */}
       {selectedSuggestion && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-purple-900 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-5 space-y-5">
