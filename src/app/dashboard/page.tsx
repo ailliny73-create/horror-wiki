@@ -775,20 +775,21 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 뱃지 모달 */}
-      <UserBadgesModal
-        isOpen={showBadgesModal}
-        onClose={() => setShowBadgesModal(false)}
-        currentUserId={currentUserId}
-        activeBadgeCode={activeBadgeCode}
-        userCommentCount={userCommentCount}
-        userDeathCount={userDeathCount}
-        userReportCount={userReportCount}
-        userExp={userExp}
-        onBadgeChanged={() => {
-          if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin);
-        }}
-      />
+      {/* 뱃지 모달 (isOpen 제거 및 올바른 속성 매핑) */}
+      {showBadgesModal && (
+        <UserBadgesModal
+          onClose={() => setShowBadgesModal(false)}
+          currentUserId={currentUserId}
+          activeBadgeCode={activeBadgeCode}
+          userCommentCount={userCommentCount}
+          userDeathCount={userDeathCount}
+          userReportCount={userReportCount}
+          userExp={userExp}
+          onBadgeChanged={() => {
+            if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin);
+          }}
+        />
+      )}
     </div>
   );
 }
