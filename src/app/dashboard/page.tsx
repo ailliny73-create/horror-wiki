@@ -12,6 +12,7 @@ import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit,
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
+import ActiveAgentsWidget from '@/components/ActiveAgentsWidget'; // 💡 실시간 접속자 위젯 임포트 추가
 
 const getKSTDateString = () => {
   const now = new Date();
@@ -456,7 +457,6 @@ export default function DashboardPage() {
     });
   };
 
-  // 💡 [조회수 기능 추가] 문서 상세 열람 시 view_count 1 증가 및 반영
   const handleOpenDetail = async (report: any) => {
     const newViewCount = (report.view_count || 0) + 1;
     setSelectedReport({ ...report, view_count: newViewCount });
@@ -480,13 +480,11 @@ export default function DashboardPage() {
       handleModalTranslate('en');
     }
 
-    // 서버 DB 조회수 업데이트
     await supabase
       .from('reports')
       .update({ view_count: newViewCount })
       .eq('id', report.id);
 
-    // 로컬 목록 상태도 갱신
     setReports(prev => prev.map(r => r.id === report.id ? { ...r, view_count: newViewCount } : r));
 
     await fetchComments(report.id);
@@ -1160,8 +1158,11 @@ export default function DashboardPage() {
             <div className="md:col-span-2 order-1">
               <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
-            <div className="order-2 w-full">
+            
+            {/* 💡 [우측 영역] 생존 테스트 아래에 실시간 접속자 위젯 장착 완료 */}
+            <div className="order-2 w-full space-y-4">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
+              <ActiveAgentsWidget currentUserId={currentUserId} userNickname={userNickname} />
             </div>
           </div>
         )}
@@ -1375,7 +1376,6 @@ export default function DashboardPage() {
                       <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
                         <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
                         <div className="flex items-center space-x-3">
-                          {/* 💡 [조회수 표시] 각 리포트 카드 하단에 조회수 반영 */}
                           <span className="flex items-center space-x-1 text-neutral-400">
                             <Eye className="w-3 h-3 text-red-500" />
                             <span>{report.view_count || 0}</span>
@@ -1628,7 +1628,6 @@ export default function DashboardPage() {
                   <div className="text-[11px] text-neutral-500 border-t border-neutral-800 pt-3 flex justify-between items-center">
                     <span>{t.author}: {selectedReport.author_nickname || 'Agent'}</span>
                     <div className="flex items-center space-x-3">
-                      {/* 💡 [상세 모달 조회수 표시] */}
                       <span className="flex items-center space-x-1 text-neutral-400">
                         <Eye className="w-3.5 h-3.5 text-red-500" />
                         <span>조회수 {selectedReport.view_count || 0}</span>
