@@ -569,7 +569,7 @@ export default function DashboardPage() {
                   }`}
                 >
                   <CalendarCheck className="w-3.5 h-3.5" />
-                  <span>{isCheckedInToday ? t.checkInDone : t.checkInBtn}</span>
+                  <span>{isCheckedInToday ? '오늘 출석 완료' : '📅 일일 출석 체크 (+20 EXP)'}</span>
                 </button>
               </div>
             )}
