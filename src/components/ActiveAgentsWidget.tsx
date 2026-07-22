@@ -10,11 +10,9 @@ export default function ActiveAgentsWidget({ currentUserId, userNickname }: { cu
   useEffect(() => {
     if (!currentUserId) return;
 
-    // 기기 판별 (모바일 여부)
     const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const deviceType = isMobile ? 'mobile' : 'pc';
 
-    // Supabase Realtime Presence 채널 생성
     const roomChannel = supabase.channel('online_agents_room', {
       config: {
         presence: {
@@ -26,15 +24,17 @@ export default function ActiveAgentsWidget({ currentUserId, userNickname }: { cu
     roomChannel
       .on('presence', { event: 'sync' }, () => {
         const state = roomChannel.presenceState();
-        const agentsList: any[] = [];
+        const agentsMap = new Map(); // 💡 [핵심] user_id 기준으로 중복을 방지하기 위한 Map 객체 사용
         
         Object.values(state).forEach((presenceArray: any) => {
           presenceArray.forEach((presence: any) => {
-            agentsList.push(presence);
+            if (presence.user_id) {
+              agentsMap.set(presence.user_id, presence);
+            }
           });
         });
 
-        setActiveAgents(agentsList);
+        setActiveAgents(Array.from(agentsMap.values()));
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
