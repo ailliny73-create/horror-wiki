@@ -160,7 +160,7 @@ export default function DashboardPage() {
         await fetchUserBadgeStats(user.id);
       }
       await fetchReports();
-      await fetchSuggestions(); // 💡 모든 요원이 건의사항을 볼 수 있도록 초기 로딩 포함
+      await fetchSuggestions();
     } catch (err) {
       console.error('Init error:', err);
     } finally {
@@ -551,8 +551,9 @@ export default function DashboardPage() {
     if (!error && data) setComments(data);
   };
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // 💡 [수정] 모바일 최적화 및 폼 전송 핸들러
+  const handleAddComment = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
     setCommentLoading(true);
 
@@ -992,7 +993,6 @@ export default function DashboardPage() {
               );
             })}
 
-            {/* 💡 [개편] 모든 요원이 건의사항 함에 접근할 수 있도록 전체 공개 전환 */}
             <button
               onClick={() => setShowSuggestionsToggle(!showSuggestionsToggle)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border ${
@@ -1106,7 +1106,7 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
+      <main className="flex-1 p-4 sm:p-6 space-y-6 max-w-5xl mx-auto w-full">
         
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
@@ -1142,12 +1142,13 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 💡 [수정] 모바일에서도 지도와 오늘의 운세(생존 테스트)가 완벽히 표시되도록 가시성 강화 */}
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
+            <div className="md:col-span-2 order-1">
               <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
-            <div className="space-y-4">
+            <div className="order-2 w-full">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
             </div>
           </div>
@@ -1229,7 +1230,6 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* 💡 [개편] 전체 요원이 볼 수 있는 건의사항 제보함 목록 */}
         {showSuggestionsToggle ? (
           <div className="space-y-4 animate-fade-in">
             <div className="bg-purple-950/30 border border-purple-900/60 p-4 rounded-lg flex items-center justify-between">
@@ -1373,10 +1373,9 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* 💡 [개편] 건의사항 상세 보기 + 오직 관리자만 답변(댓글) 작성 가능 모달 */}
       {selectedSuggestion && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-900 border border-purple-900 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-6 space-y-5">
+          <div className="bg-neutral-900 border border-purple-900 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-5 space-y-5">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
               <span className="text-xs text-purple-400 font-bold">🔒 건의사항 상세 및 사령부 공식 답변</span>
               <button onClick={() => setSelectedSuggestion(null)} className="text-neutral-500 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
@@ -1399,7 +1398,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* 사령부 답변 댓글 섹션 */}
             <div className="border-t border-neutral-800 pt-4 space-y-3">
               <h3 className="text-xs font-bold text-purple-400 flex items-center space-x-1.5">
                 <Crown className="w-3.5 h-3.5 text-yellow-500" />
@@ -1455,8 +1453,8 @@ export default function DashboardPage() {
       )}
 
       {selectedReport && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-6">
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-4 sm:p-6 space-y-5 sm:space-y-6">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
               <span className="text-xs text-red-500 font-bold tracking-wider">
                 [{selectedReport.is_notice ? t.notice : selectedReport.category || t.report}] {t.detailTitle}
@@ -1625,28 +1623,30 @@ export default function DashboardPage() {
                   )}
                 </div>
 
+                {/* 💡 [모바일 최적화] 댓글 입력 및 제출 폼 영역 */}
                 <div className="border-t border-neutral-800 pt-5 space-y-4">
                   <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
                     <MessageSquare className="w-4 h-4 text-red-600" />
                     <span>{t.comments} ({comments.length})</span>
                   </div>
 
-                  <form onSubmit={handleAddComment} className="flex gap-2">
+                  <form onSubmit={handleAddComment} className="flex gap-2 items-center">
                     <input
                       type="text"
                       required
                       value={newComment}
                       onChange={(e) => setNewComment(e.target.value)}
                       placeholder={t.commentPlaceholder}
-                      className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                      className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
                     />
                     <button
-                      type="submit"
-                      disabled={commentLoading}
-                      className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50"
+                      type="button"
+                      onClick={() => handleAddComment()}
+                      disabled={commentLoading || !newComment.trim()}
+                      className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2.5 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50 shrink-0 select-none active:bg-red-950"
                     >
                       {commentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                      <span>{t.send} (+5 EXP)</span>
+                      <span>{t.send}</span>
                     </button>
                   </form>
 
@@ -1683,7 +1683,7 @@ export default function DashboardPage() {
                                       setReplyText('');
                                     }
                                   }}
-                                  className="text-[10px] text-neutral-500 hover:text-red-400 flex items-center space-x-1 cursor-pointer transition-colors"
+                                  className="text-[10px] text-neutral-500 hover:text-red-400 flex items-center space-x-1 cursor-pointer transition-colors p-1"
                                 >
                                   <CornerDownRight className="w-3.5 h-3.5" />
                                   <span>{replyTargetId === comment.id ? '취소' : '답글 달기'}</span>
@@ -1692,28 +1692,29 @@ export default function DashboardPage() {
                             </div>
 
                             {replyTargetId === comment.id && (
-                              <div className="pl-6 flex gap-2 pt-1">
-                                <CornerDownRight className="w-4 h-4 text-red-500 shrink-0 mt-2" />
+                              <div className="pl-4 sm:pl-6 flex gap-2 pt-1 items-center">
+                                <CornerDownRight className="w-4 h-4 text-red-500 shrink-0" />
                                 <input
                                   type="text"
                                   value={replyText}
                                   onChange={(e) => setReplyText(e.target.value)}
-                                  placeholder={`${comment.author_nickname} 요원에게 남길 답글 입력...`}
-                                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded px-3 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                                  placeholder={`${comment.author_nickname} 요원에게 답글...`}
+                                  className="flex-1 bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
                                   autoFocus
                                 />
                                 <button
+                                  type="button"
                                   onClick={() => handleAddReply(comment.id)}
                                   disabled={commentLoading || !replyText.trim()}
-                                  className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-xs px-3 py-1.5 rounded font-bold cursor-pointer disabled:opacity-50 shrink-0"
+                                  className="bg-red-950 hover:bg-red-900 text-red-300 border border-red-800 text-xs px-3 py-2 rounded font-bold cursor-pointer disabled:opacity-50 shrink-0 active:bg-red-900"
                                 >
-                                  {commentLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '답글 작성'}
+                                  {commentLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : '작성'}
                                 </button>
                               </div>
                             )}
 
                             {replies.length > 0 && (
-                              <div className="pl-6 space-y-2 border-l border-neutral-800 ml-2">
+                              <div className="pl-4 sm:pl-6 space-y-2 border-l border-neutral-800 ml-2">
                                 {replies.map((reply) => (
                                   <div key={reply.id} className="bg-neutral-900/60 border border-neutral-800/50 p-2.5 rounded space-y-1 text-xs">
                                     <div className="flex justify-between items-center">
