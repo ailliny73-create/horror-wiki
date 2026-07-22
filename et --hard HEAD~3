@@ -1,0 +1,71 @@
+[33m771fd17[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m feat: restore all 1600 lines features and city horror category
+[33meb77e84[m fix: resolve UserBadgesModal isOpen property type error
+[33mb622cf9[m fix: resolve check-in button text type error
+[33mc0cb913[m fix: resolve typescript error on language translation label
+[33m254c3c8[m fix: restore all features and add city horror series category
+[33mc4bbbfb[m feat: add city horror series category and dashboard updates
+[33m3eab6a5[m feat: add bilingual KR/EN toggle to landing page
+[33me74d29a[m feat: auto-translate feed items to English when LANGUAGE is set to EN, and add browser language detection
+[33m78ab581[m fix: update fetchUserBadgeStats to query actual comment rows for accurate badge unlocking
+[33m18a30b4[m fix: link live comment counts and death counts to UserBadgesModal for accurate badge progress tracking
+[33m0c6f24c[m fix: ensure export default is explicit in UserBadgesModal
+[33mcd12438[m feat: move badges out of main dashboard into a personal modal, and add live progress tracking (remaining counts) for locked badges
+[33me5d99f3[m feat: add map dragging (panning), zoom controls, and smart tooltip positioning to prevent text clipping
+[33m75e9539[m fix: adjust radar map tooltip position to bottom-side to prevent text clipping at the top
+[33m1d54b13[m fix: finalize full operational dashboard code without any type or syntax errors
+[33mb0d63ed[m feat: add 'My Reports' tab and allow clicking agent nickname to filter and view personal documents
+[33mdc4b02f[m fix: enforce strict unlock conditions for agent badges and prevent unearned badge equipping
+[33mfde3de4[m feat: add agent badges system with active title prefix (e.g. [사망전대 생존자] 요원)
+[33md77a91b[m feat: add anomaly radar map, survival luck test, and agent badges systems
+[33m805ac42[m fix: resolve attendance constraint and ensure robust profile handling in database and frontend
+[33m72821f7[m fix: update project files
+[33me738613[m feat: change confidential text masking syntax from brackets to double parenthesis ((word))
+[33m6ca1696[m feat: add notice toggle button to collapse or expand top notices
+[33m5cca0df[m fix: atomic EXP increment with auto refetch to prevent EXP rollback issue
+[33mf6bff12[m fix: centered notification modal to prevent overflow and trigger 404 glitch on exact count matches only
+[33m56f0df7[m fix: adjust notification dropdown positioning to right-0 to prevent left overflow
+[33m37eeedf[m fix: fix mobile notification dropdown width overflow to lock screen layout size
+[33m8752a84[m fix: remove EXP rewards from comment replies
+[33m7f14f70[m security: prevent non-admin users from changing nickname to ADMIN or commander titles
+[33m07a10c4[m fix: resolve icon JSX syntax error and ensure 100% stable Dashboard build
+[33m196e16e[m feat: split stats widget into 4 categories including hazard reports and free board
+[33mc7dffba[m feat: enforce robust EXP accumulation for check-in, report creation, and commenting via RPC
+[33m7403ee1[m feat: add real-time batch translation for overall post list
+[33m72b5059[m feat: add real-time Korean translation toggle button for classified reports
+[33m54392c9[m feat: trigger 404 signal glitch milestone at 10, 50, 100, 150 hazard reports
+[33m88c90cb[m fix: resolve boolean type mismatch in fetchUserProfile and enforce strict boolean argument
+[33m01fbb1e[m feat: show special title '👑 최고 관리자' for ADMIN user
+[33m876efcd[m feat: enforce top admin clearance check for creating notices
+[33m063cb14[m feat: add required security clearance level selection option for new reports
+[33m166cd32[m fix: add restricted and clearance properties to i18n dictionary
+[33m458e6c5[m feat: add daily check-in, exp system and automatic clearance level-up
+[33m8c8e67e[m feat: add real-time comment notification system for report authors
+[33m1c34b3b[m feat: move layout to sidebar and add anomaly 404 signal glitch event for 10+ reports
+[33m8f164f5[m feat: add [AI] title prefix for AI generated reports
+[33m7da22a0[m fix: safe initialization of supabase client in cron route for vercel build
+[33m1230398[m feat: complete i18n support and daily automated AI report generator setup
+[33m9999477[m feat: add KR/EN multi-language toggle support
+[33md10a5ac[m feat: add danger level stats dashboard widget and tag/keyword search system
+[33m3195090[m feat: add admin notices and admin-only notice creation feature
+[33m91dbe0a[m feat: add user info badge, board categories, and danger level filters
+[33ma193018[m feat: restore full report creation form and secure edit/delete permissions
+[33m9331db5[m feat: add click modal detail, edit/delete report, and fix image upload policy
+[33m8fb1250[m fix: report creation logic and explicit user_id insertion
+[33m7ccc6c9[m fix: enforce safe url validation functions to pass vercel build
+[33m8a3177d[m fix: hardcode fallback supabase url to prevent client undefined error
+[33md33b646[m fix: lazy supabase initialization for prerender error fix
+[33m4e2750d[m fix: restore direct supabase client with explicit fallback url
+[33m7ca1445[m fix: resolve frozen signup form and handle exceptions
+[33mb400f70[m fix: lazy initialize supabase client to bypass vercel prerender error
+[33m3afab20[m fix: use real supabase url for fallback to pass vercel prerender
+[33m777f782[m fix: add use client directive to dashboard page
+[33m8a1fada[m fix: force dynamic rendering on dashboard and fix supabase url fallback
+[33m8c5d3c2[m fix: add fallback url for supabase client build error
+[33md36f65a[m fix: enforce full session persistence and clear login auth
+[33m92d7f67[m fix: updated full login and signup flow
+[33m4c8b079[m fix login signup
+[33m12c82cf[m fix login signup
+[33m2834b40[m 보고서 수정 및 채증 사진 업로드 기능 완성
+[33m1c7ea8c[m 괴이대응국 랜딩, 로그인, 보관소, 댓글, 삭제 기능 완성 버전
+[33mc25519f[m feat: 메인 페이지 레이아웃 및 디자인 완성
+[33md86833e[m Initial commit from Create Next App

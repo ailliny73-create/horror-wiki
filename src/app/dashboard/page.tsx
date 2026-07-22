@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User, Film } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User, Film, Eye } from 'lucide-react';
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
@@ -63,8 +63,6 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  
-  // 💡 [수정] activeTab 타입에 '시리즈물 제작' 추가
   const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '시리즈물 제작' | '공지사항' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
@@ -458,8 +456,11 @@ export default function DashboardPage() {
     });
   };
 
+  // 💡 [조회수 기능 추가] 문서 상세 열람 시 view_count 1 증가 및 반영
   const handleOpenDetail = async (report: any) => {
-    setSelectedReport(report);
+    const newViewCount = (report.view_count || 0) + 1;
+    setSelectedReport({ ...report, view_count: newViewCount });
+    
     setEditTitle(report.title);
     setEditContent(report.content);
     setEditLocation(report.location || '');
@@ -478,6 +479,15 @@ export default function DashboardPage() {
     if (lang === 'en') {
       handleModalTranslate('en');
     }
+
+    // 서버 DB 조회수 업데이트
+    await supabase
+      .from('reports')
+      .update({ view_count: newViewCount })
+      .eq('id', report.id);
+
+    // 로컬 목록 상태도 갱신
+    setReports(prev => prev.map(r => r.id === report.id ? { ...r, view_count: newViewCount } : r));
 
     await fetchComments(report.id);
   };
@@ -715,7 +725,6 @@ export default function DashboardPage() {
 
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
-  // 💡 [수정] 시리즈물 제작 카테고리 필터링 로직 정밀 적용
   const filteredReports = reports.filter((report) => {
     if (activeTab === '내 기록') {
       if (report.user_id !== currentUserId) return false;
@@ -967,8 +976,6 @@ export default function DashboardPage() {
 
           <nav className="space-y-1">
             <div className="text-[10px] text-neutral-500 px-2 py-1 font-bold">CATEGORIES</div>
-            
-            {/* 💡 [수정] '시리즈물 제작' 카테고리를 사이드바 탭 목록에 추가 */}
             {[
               { id: '전체', name: t.all, icon: Activity },
               { id: '공지사항', name: t.notice, icon: Megaphone },
@@ -1367,7 +1374,14 @@ export default function DashboardPage() {
 
                       <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
                         <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
-                        <span>{new Date(report.created_at).toLocaleString()}</span>
+                        <div className="flex items-center space-x-3">
+                          {/* 💡 [조회수 표시] 각 리포트 카드 하단에 조회수 반영 */}
+                          <span className="flex items-center space-x-1 text-neutral-400">
+                            <Eye className="w-3 h-3 text-red-500" />
+                            <span>{report.view_count || 0}</span>
+                          </span>
+                          <span>{new Date(report.created_at).toLocaleString()}</span>
+                        </div>
                       </div>
                     </div>
                   );
@@ -1613,7 +1627,14 @@ export default function DashboardPage() {
 
                   <div className="text-[11px] text-neutral-500 border-t border-neutral-800 pt-3 flex justify-between items-center">
                     <span>{t.author}: {selectedReport.author_nickname || 'Agent'}</span>
-                    <span>{new Date(selectedReport.created_at).toLocaleString()}</span>
+                    <div className="flex items-center space-x-3">
+                      {/* 💡 [상세 모달 조회수 표시] */}
+                      <span className="flex items-center space-x-1 text-neutral-400">
+                        <Eye className="w-3.5 h-3.5 text-red-500" />
+                        <span>조회수 {selectedReport.view_count || 0}</span>
+                      </span>
+                      <span>{new Date(selectedReport.created_at).toLocaleString()}</span>
+                    </div>
                   </div>
 
                   {(isAdmin || (currentUserId && currentUserId === selectedReport.user_id)) && (
