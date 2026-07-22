@@ -355,7 +355,6 @@ export default function DashboardPage() {
     if (data) setNotifications(data);
   };
 
-  // 💡 [자동 파기 로직] 1시간이 지난 공지사항은 자동으로 삭제 처리
   const fetchReports = async () => {
     const { data, error } = await supabase.from('reports').select('*').order('is_notice', { ascending: false }).order('created_at', { ascending: false });
 
@@ -1137,20 +1136,28 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4 sm:p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 상단 노란색 전광판 */}
+        {/* 💡 확실하게 좌측으로 흘러가는 긴급 브리핑 전광판 (인라인 CSS 애니메이션 적용) */}
         {activeNotices.length > 0 && (
-          <div className="bg-yellow-950/40 border border-yellow-700/80 rounded-lg p-3 flex items-center space-x-3 overflow-hidden shadow-lg shadow-yellow-950/20">
-            <div className="flex items-center space-x-1.5 shrink-0 bg-yellow-900/80 text-yellow-200 text-xs font-extrabold px-2.5 py-1 rounded animate-pulse">
+          <div className="bg-yellow-950/40 border border-yellow-700/80 rounded-lg p-3 flex items-center space-x-3 overflow-hidden shadow-lg shadow-yellow-950/20 relative">
+            <div className="flex items-center space-x-1.5 shrink-0 bg-yellow-900/80 text-yellow-200 text-xs font-extrabold px-2.5 py-1 rounded animate-pulse z-10">
               <RadioTower className="w-4 h-4 text-yellow-300" />
               <span>긴급 사령부 브리핑</span>
             </div>
-            <div className="overflow-hidden whitespace-nowrap w-full relative">
-              <div className="inline-block animate-[marquee_25s_linear_infinite] text-xs font-bold text-yellow-300 space-x-12">
+            
+            <div className="overflow-hidden whitespace-nowrap w-full relative flex items-center">
+              <div 
+                className="inline-flex items-center space-x-12 text-xs font-bold text-yellow-300"
+                style={{
+                  display: 'inline-block',
+                  whiteSpace: 'nowrap',
+                  animation: 'marquee 20s linear infinite',
+                }}
+              >
                 {activeNotices.map((notice) => (
                   <span 
                     key={notice.id} 
                     onClick={() => handleOpenDetail(notice)} 
-                    className="cursor-pointer hover:underline inline-flex items-center space-x-2"
+                    className="cursor-pointer hover:underline inline-flex items-center space-x-2 mr-12"
                   >
                     <span>📢 [{notice.title}]</span>
                     <span className="text-[10px] text-yellow-500 font-normal">({new Date(notice.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} 발령)</span>
@@ -1158,6 +1165,13 @@ export default function DashboardPage() {
                 ))}
               </div>
             </div>
+
+            <style jsx>{`
+              @keyframes marquee {
+                0% { transform: translateX(100%); }
+                100% { transform: translateX(-100%); }
+              }
+            `}</style>
           </div>
         )}
 
@@ -1433,7 +1447,6 @@ export default function DashboardPage() {
         )}
       </main>
 
-      {/* 기타 모달 창들 생략 없이 유지됨 */}
       {selectedSuggestion && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-purple-900 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-5 space-y-5">
