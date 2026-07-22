@@ -9,7 +9,6 @@ import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
 import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock } from 'lucide-react';
 
-// 💡 새로 추가된 사령부 특수 컴포넌트 임포트
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadges from '@/components/UserBadges';
@@ -23,6 +22,7 @@ export default function DashboardPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
+  const [activeBadgeName, setActiveBadgeName] = useState<string>('신규 요원');
   
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
@@ -691,7 +691,10 @@ export default function DashboardPage() {
                     <div className="flex items-center justify-between font-bold">
                       <div className="flex items-center space-x-1.5">
                         {isAdmin ? <Crown className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                        <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>{userNickname}</span>
+                        {/* 💡 [장착된 훈장 칭호가 닉네임 앞에 실시간 적용] */}
+                        <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>
+                          <span className="text-red-400 font-extrabold mr-1">[{activeBadgeName}]</span> {userNickname}
+                        </span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-[10px] text-red-400 flex items-center space-x-0.5">
@@ -928,7 +931,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 💡 새로 추가된 특수 기능 위젯들 (레이더 맵, 생존 테스트, 수훈 훈장) */}
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -941,7 +943,14 @@ export default function DashboardPage() {
         )}
 
         {!showSuggestionsToggle && (
-          <UserBadges userExp={userExp} reportCount={userReportCount} />
+          <UserBadges 
+            userId={currentUserId}
+            userExp={userExp} 
+            reportCount={userReportCount} 
+            commentCount={0} 
+            deathCount={0}
+            onBadgeChange={(badgeName) => setActiveBadgeName(badgeName)}
+          />
         )}
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
