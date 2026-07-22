@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  // 💡 '도시 괴담 시리즈' 탭 추가
+  // 💡 도시 괴담 시리즈 카테고리 포함 탭 상태
   const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항' | '도시 괴담 시리즈' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
@@ -437,7 +437,7 @@ export default function DashboardPage() {
   const unreadNotiCount = notifications.filter((n) => !n.is_read).length;
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
-  // 💡 카테고리 필터 로직 ('도시 괴담 시리즈'는 카테고리 또는 태그에 포함된 경우)
+  // 💡 카테고리 필터 로직 (도시 괴담 시리즈 포함)
   const filteredReports = reports.filter((report) => {
     if (activeTab === '내 기록') {
       if (report.user_id !== currentUserId) return false;
@@ -512,7 +512,7 @@ export default function DashboardPage() {
             >
               <span className="flex items-center space-x-2">
                 <Globe className="w-3.5 h-3.5 text-red-500" />
-                <span>LANGUAGE</span>
+                <span>{t.language}</span>
               </span>
               <span className="text-red-400 font-bold">{lang === 'kr' ? '한국어 (KR)' : 'ENGLISH (EN)'}</span>
             </button>
@@ -526,18 +526,50 @@ export default function DashboardPage() {
                   </span>
                 </div>
                 <div className="flex items-center justify-between font-bold">
-                  <span className="text-red-400">[{activeBadgeName}] {userNickname}</span>
+                  <div className="flex items-center space-x-1.5">
+                    <span 
+                      onClick={() => setShowBadgesModal(true)}
+                      className="text-red-400 cursor-pointer hover:underline"
+                      title="뱃지 변경"
+                    >
+                      [{activeBadgeName}]
+                    </span>
+                    {isEditingNickname ? (
+                      <div className="flex items-center space-x-1">
+                        <input
+                          type="text"
+                          value={newNickname}
+                          onChange={(e) => setNewNickname(e.target.value)}
+                          className="bg-neutral-900 border border-red-800 rounded px-1.5 py-0.5 text-xs text-white w-24 focus:outline-none"
+                          maxLength={15}
+                        />
+                        <button onClick={handleSaveNickname} disabled={savingNickname} className="text-green-400 hover:text-green-300">
+                          <Save className="w-3.5 h-3.5" />
+                        </button>
+                        <button onClick={() => setIsEditingNickname(false)} className="text-neutral-500 hover:text-white">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-1">
+                        <span className="text-white">{userNickname}</span>
+                        <button onClick={() => { setNewNickname(userNickname); setIsEditingNickname(true); }} className="text-neutral-500 hover:text-red-400">
+                          <Edit className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <span className="text-[10px] text-neutral-400">{userExp} EXP</span>
                 </div>
                 <button
                   onClick={handleCheckIn}
                   disabled={isCheckedInToday}
                   className={`w-full text-xs py-1.5 rounded font-bold border flex items-center justify-center space-x-1 ${
-                    isCheckedInToday ? 'bg-neutral-900 border-neutral-800 text-neutral-500' : 'bg-red-950 hover:bg-red-900 border-red-800 text-red-300 animate-pulse'
+                    isCheckedInToday ? 'bg-neutral-900 border-neutral-800 text-neutral-500' : 'bg-red-950 hover:bg-red-900 border-red-800 text-red-300 animate-pulse cursor-pointer'
                   }`}
                 >
                   <CalendarCheck className="w-3.5 h-3.5" />
-                  <span>{isCheckedInToday ? '오늘 출석 완료' : '📅 일일 출석 체크 (+20 EXP)'}</span>
+                  <span>{isCheckedInToday ? t.checkInDone : t.checkInBtn}</span>
                 </button>
               </div>
             )}
@@ -559,7 +591,7 @@ export default function DashboardPage() {
               { id: '공지사항', name: t.notice, icon: Megaphone },
               { id: '위험 보고서', name: t.report, icon: AlertCircle },
               { id: '자유 게시판', name: t.freeBoard, icon: Radio },
-              { id: '도시 괴담 시리즈', name: '🌆 도시 괴담 시리즈', icon: BookOpen }, // 💡 추가된 카테고리
+              { id: '도시 괴담 시리즈', name: '🌆 도시 괴담 시리즈', icon: BookOpen },
               { id: '내 기록', name: `내 기록 (${userReportCount}건)`, icon: User },
             ].map((tab) => {
               const Icon = tab.icon;
@@ -614,53 +646,149 @@ export default function DashboardPage() {
               <p>해당 카테고리에 등록된 기밀 문서가 없습니다.</p>
             </div>
           ) : (
-            filteredReports.map((report) => (
-              <div
-                key={report.id}
-                onClick={() => handleOpenDetail(report)}
-                className="border bg-neutral-900/80 border-neutral-800 p-5 rounded-lg space-y-3 cursor-pointer hover:border-red-900/80 transition-all"
-              >
-                <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
-                  <div className="flex items-center space-x-2">
-                    <span className="text-xs px-2 py-0.5 rounded bg-red-950 text-red-400 font-bold border border-red-900">
-                      {report.category || '도시 괴담 시리즈'}
-                    </span>
-                    <h3 className="text-base font-bold text-neutral-100">{report.title}</h3>
+            filteredReports.map((report) => {
+              const displayTitle = lang === 'en' && englishMap[report.id] ? englishMap[report.id].title : report.title;
+              const displayContent = lang === 'en' && englishMap[report.id] ? englishMap[report.id].content : report.content;
+
+              return (
+                <div
+                  key={report.id}
+                  onClick={() => handleOpenDetail(report)}
+                  className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all ${
+                    report.is_notice ? 'bg-red-950/20 border-red-900/60 hover:border-red-600' : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
+                  }`}
+                >
+                  <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
+                    <div className="flex items-center space-x-2">
+                      {report.is_notice ? (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-900 text-white font-bold border border-red-700 animate-pulse">공지사항</span>
+                      ) : (
+                        <span className="text-xs px-2 py-0.5 rounded bg-red-950 text-red-400 font-bold border border-red-900">
+                          {report.category || '도시 괴담 시리즈'}
+                        </span>
+                      )}
+                      <h3 className="text-base font-bold text-neutral-100">{displayTitle}</h3>
+                    </div>
+                    {report.danger_level && (
+                      <span className="bg-red-950/85 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
+                        {report.danger_level}
+                      </span>
+                    )}
                   </div>
-                  {report.danger_level && (
-                    <span className="bg-red-950/85 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
-                      {report.danger_level}
-                    </span>
-                  )}
+                  <p className="text-xs leading-relaxed line-clamp-2 text-neutral-400">
+                    {renderMaskedText(displayContent, `content-${report.id}`)}
+                  </p>
+                  <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between">
+                    <span>작성자: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
+                    <span>{new Date(report.created_at).toLocaleString()}</span>
+                  </div>
                 </div>
-                <p className="text-xs leading-relaxed line-clamp-2 text-neutral-400">
-                  {renderMaskedText(report.content, `content-${report.id}`)}
-                </p>
-                <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between">
-                  <span>작성자: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
-                  <span>{new Date(report.created_at).toLocaleString()}</span>
-                </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </main>
 
-      {/* 상세 보기 모달 */}
+      {/* 상세 보기 모달 (댓글 및 번역 포함) */}
       {selectedReport && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-6">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-              <span className="text-xs text-red-500 font-bold">기밀 문서 상세</span>
+              <div className="flex items-center space-x-2">
+                <span className="text-xs text-red-500 font-bold">기밀 문서 상세</span>
+                <div className="flex items-center space-x-1 ml-4 bg-neutral-950 p-1 rounded border border-neutral-800 text-[10px]">
+                  <button
+                    onClick={() => handleModalTranslate('original')}
+                    className={`px-2 py-0.5 rounded font-bold cursor-pointer ${modalTranslateMode === 'original' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'}`}
+                  >
+                    ORIGINAL
+                  </button>
+                  <button
+                    onClick={() => handleModalTranslate('kr')}
+                    className={`px-2 py-0.5 rounded font-bold cursor-pointer ${modalTranslateMode === 'kr' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'}`}
+                  >
+                    🇰🇷 KR
+                  </button>
+                  <button
+                    onClick={() => handleModalTranslate('en')}
+                    className={`px-2 py-0.5 rounded font-bold cursor-pointer ${modalTranslateMode === 'en' ? 'bg-red-900 text-white' : 'text-neutral-400 hover:text-white'}`}
+                  >
+                    🇺🇸 EN
+                  </button>
+                </div>
+              </div>
               <button onClick={() => setSelectedReport(null)} className="text-neutral-500 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
-            <h2 className="text-lg font-bold text-neutral-100">{selectedReport.title}</h2>
-            <div className="bg-neutral-950 p-4 rounded border border-neutral-800 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-              {renderMaskedText(selectedReport.content, `modal-${selectedReport.id}`)}
-            </div>
+
+            {modalTranslating ? (
+              <div className="py-12 text-center text-xs text-neutral-500 flex items-center justify-center space-x-2">
+                <Loader2 className="w-4 h-4 animate-spin text-red-500" />
+                <span>데이터 번역 중...</span>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-neutral-100">{currentModalTitle}</h2>
+                <div className="bg-neutral-950 p-4 rounded border border-neutral-800 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
+                  {renderMaskedText(currentModalContent, `modal-${selectedReport.id}`)}
+                </div>
+
+                {/* 댓글 영역 */}
+                <div className="border-t border-neutral-800 pt-4 space-y-4">
+                  <h3 className="text-xs font-bold text-neutral-400 flex items-center space-x-1.5">
+                    <MessageSquare className="w-3.5 h-3.5 text-red-500" />
+                    <span>요원들의 무전 토론 (댓글 {comments.length})</span>
+                  </h3>
+
+                  <form onSubmit={handleAddComment} className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="의견이나 현장 첩보를 남기십시오..."
+                      className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                    />
+                    <button type="submit" disabled={commentLoading} className="bg-red-900 hover:bg-red-800 text-white px-4 py-2 rounded text-xs font-bold cursor-pointer">
+                      전송
+                    </button>
+                  </form>
+
+                  <div className="space-y-3 pt-2">
+                    {rootComments.map((comment) => (
+                      <div key={comment.id} className="bg-neutral-950 border border-neutral-800/80 p-3 rounded text-xs space-y-1.5">
+                        <div className="flex justify-between text-[10px] text-neutral-500">
+                          <span className="font-bold text-neutral-400">{comment.author_nickname}</span>
+                          <div className="flex items-center space-x-2">
+                            <span>{new Date(comment.created_at).toLocaleString()}</span>
+                            {(comment.user_id === currentUserId || isAdmin) && (
+                              <button onClick={() => handleDeleteComment(comment.id)} className="text-red-500 hover:text-red-400">삭제</button>
+                            )}
+                          </div>
+                        </div>
+                        <p className="text-neutral-300">{comment.content}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
+
+      {/* 뱃지 모달 */}
+      <UserBadgesModal
+        isOpen={showBadgesModal}
+        onClose={() => setShowBadgesModal(false)}
+        currentUserId={currentUserId}
+        activeBadgeCode={activeBadgeCode}
+        userCommentCount={userCommentCount}
+        userDeathCount={userDeathCount}
+        userReportCount={userReportCount}
+        userExp={userExp}
+        onBadgeChanged={() => {
+          if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin);
+        }}
+      />
     </div>
   );
 }
