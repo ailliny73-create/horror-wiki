@@ -76,6 +76,10 @@ export default function DashboardPage() {
   const [listTranslating, setListTranslating] = useState(false);
   const [translatedMap, setTranslatedMap] = useState<{ [id: string]: { title: string; content: string } }>({});
 
+  // 💡 [추가] 영어 자동 번역 목록 맵
+  const [englishMap, setEnglishMap] = useState<{ [id: string]: { title: string; content: string } }>({});
+  const [englishListTranslating, setEnglishListTranslating] = useState(false);
+
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
@@ -87,8 +91,43 @@ export default function DashboardPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // 💡 브라우저 언어가 영문 계열이면 최초 진입 시 자동으로 영어 모드 세팅
+    const browserLang = navigator.language || navigator.languages[0];
+    if (browserLang && !browserLang.toLowerCase().startsWith('ko')) {
+      setLang('en');
+    }
     fetchInitialData();
   }, []);
+
+  // 💡 언어(lang)가 'en'으로 바뀔 때 게시글 목록을 자동으로 영어로 번역 캐싱
+  useEffect(() => {
+    if (lang === 'en' && reports.length > 0 && Object.keys(englishMap).length === 0) {
+      handleTranslateAllToEnglish();
+    }
+  }, [lang, reports]);
+
+  const handleTranslateAllToEnglish = async () => {
+    setEnglishListTranslating(true);
+    const newMap: { [id: string]: { title: string; content: string } } = {};
+
+    for (const report of reports) {
+      try {
+        const resTitle = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(report.title)}`);
+        const jsonTitle = await resTitle.json();
+        const enTitle = jsonTitle[0].map((item: any) => item[0]).join('');
+
+        const resContent = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(report.content)}`);
+        const jsonContent = await resContent.json();
+        const enContent = jsonContent[0].map((item: any) => item[0]).join('');
+
+        newMap[report.id] = { title: enTitle, content: enContent };
+      } catch (e) {
+        newMap[report.id] = { title: report.title, content: report.content };
+      }
+    }
+    setEnglishMap(newMap);
+    setEnglishListTranslating(false);
+  };
 
   const fetchInitialData = async () => {
     try {
@@ -118,7 +157,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 데이터 직접 조회 방식으로 댓글 수 및 사망 횟수 카운트 개선
   const fetchUserBadgeStats = async (userId: string) => {
     try {
       const { data: commentsData } = await supabase
@@ -126,9 +164,7 @@ export default function DashboardPage() {
         .select('id')
         .eq('user_id', userId);
 
-      if (commentsData) {
-        setUserCommentCount(commentsData.length);
-      }
+      if (commentsData) setUserCommentCount(commentsData.length);
 
       const { data: survivalData } = await supabase
         .from('survival_logs')
@@ -136,9 +172,7 @@ export default function DashboardPage() {
         .eq('user_id', userId)
         .eq('result_type', 'death');
 
-      if (survivalData) {
-        setUserDeathCount(survivalData.length);
-      }
+      if (survivalData) setUserDeathCount(survivalData.length);
     } catch (e) {
       console.error('Badge stats fetch error:', e);
     }
@@ -370,6 +404,11 @@ export default function DashboardPage() {
     setModalTranslatedContent('');
     setModalEnglishTitle('');
     setModalEnglishContent('');
+
+    // 💡 영어 모드일 경우 상세 모달 열 때 자동으로 영어 세팅
+    if (lang === 'en') {
+      handleModalTranslate('en');
+    }
 
     await fetchComments(report.id);
   };
@@ -641,7 +680,10 @@ export default function DashboardPage() {
 
   let currentModalTitle = selectedReport?.title || '';
   let currentModalContent = selectedReport?.content || '';
-  if (modalTranslateMode === 'kr') {
+  if (lang === 'en' && englishMap[selectedReport?.id]) {
+    currentModalTitle = englishMap[selectedReport.id].title;
+    currentModalContent = englishMap[selectedReport.id].content;
+  } else if (modalTranslateMode === 'kr') {
     currentModalTitle = modalTranslatedTitle;
     currentModalContent = modalTranslatedContent;
   } else if (modalTranslateMode === 'en') {
@@ -717,6 +759,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-2">
+            {/* 💡 언어 전환 버튼 (클릭 시 전체 UI 및 게시글 영어 자동 번역 활성화) */}
             <button
               onClick={() => setLang(lang === 'kr' ? 'en' : 'kr')}
               className="w-full bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-xs py-2 px-3 rounded flex items-center justify-between cursor-pointer font-bold text-neutral-300 transition-colors"
@@ -1163,6 +1206,11 @@ export default function DashboardPage() {
           <>
             {loading ? (
               <div className="text-center text-xs text-neutral-500 py-16">Loading Classified Database...</div>
+            ) : englishListTranslating ? (
+              <div className="text-center text-xs text-neutral-400 py-16 flex flex-col items-center space-y-2">
+                <Loader2 className="w-6 h-6 animate-spin text-red-500" />
+                <p>Translating all feeds into English for global agents...</p>
+              </div>
             ) : filteredReports.length === 0 ? (
               <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
                 <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
@@ -1171,8 +1219,17 @@ export default function DashboardPage() {
             ) : (
               <div className="space-y-4">
                 {filteredReports.map((report) => {
-                  const displayTitle = (isListTranslated && translatedMap[report.id]?.title) ? translatedMap[report.id].title : report.title;
-                  const displayContent = (isListTranslated && translatedMap[report.id]?.content) ? translatedMap[report.id].content : report.content;
+                  // 💡 영어 모드일 경우 영어 번역된 제목/내용 출력
+                  let displayTitle = report.title;
+                  let displayContent = report.content;
+
+                  if (lang === 'en' && englishMap[report.id]) {
+                    displayTitle = englishMap[report.id].title;
+                    displayContent = englishMap[report.id].content;
+                  } else if (isListTranslated && translatedMap[report.id]) {
+                    displayTitle = translatedMap[report.id].title;
+                    displayContent = translatedMap[report.id].content;
+                  }
 
                   return (
                     <div
