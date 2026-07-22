@@ -13,6 +13,17 @@ import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
 
+// 💡 [핵심 패치] 어떤 환경에서든 한국 표준시(KST) 기준으로 정확한 YYYY-MM-DD를 반환하는 헬퍼 함수
+const getKSTDateString = () => {
+  const now = new Date();
+  const utcNow = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
+  const kstTime = new Date(utcNow + (9 * 60 * 60 * 1000));
+  const year = kstTime.getFullYear();
+  const month = String(kstTime.getMonth() + 1).padStart(2, '0');
+  const day = String(kstTime.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
   const t = translations[lang];
@@ -33,7 +44,10 @@ export default function DashboardPage() {
 
   const [userExp, setUserExp] = useState<number>(0);
   const [userLevel, setUserLevel] = useState<number>(5);
+  
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
+  const [isCheckingIn, setIsCheckingIn] = useState(false); // 💡 연타 방지용 로딩 락 상태 추가
+
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [userCommentCount, setUserCommentCount] = useState<number>(0);
@@ -191,7 +205,7 @@ export default function DashboardPage() {
       .eq('user_id', userId)
       .single();
 
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = getKSTDateString();
 
     if (data) {
       const level = calculateLevel(data.exp, admin);
@@ -274,45 +288,70 @@ export default function DashboardPage() {
   };
 
   const handleCheckIn = async () => {
-    if (!currentUserId || isCheckedInToday) return;
+    // 💡 광클 연타 차단: 이미 통신 중이거나 오늘 출석했으면 무시
+    if (!currentUserId || isCheckedInToday || isCheckingIn) return;
+    
+    setIsCheckingIn(true);
 
-    const todayStr = new Date().toISOString().split('T')[0];
-    const addedExp = 20;
+    try {
+      const todayStr = getKSTDateString();
+      const addedExp = 20;
 
-    const { data: profileCheck } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .eq('user_id', currentUserId)
-      .single();
+      // 1. 방어 로직: 클릭 시점에 DB의 최신 last_checkin 값을 한 번 더 검증 (동시성 무한 증식 차단)
+      const { data: profileCheck } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', currentUserId)
+        .single();
 
-    if (!profileCheck) {
-      await supabase.from('user_profiles').insert([
-        {
-          user_id: currentUserId,
-          nickname: userNickname || '특무 요원',
-          exp: 0,
-          clearance_level: isAdmin ? 1 : 5,
-        },
-      ]);
-    } else if (!profileCheck.nickname) {
-      await supabase.from('user_profiles').update({ nickname: userNickname || '특무 요원' }).eq('user_id', currentUserId);
+      if (profileCheck && profileCheck.last_checkin === todayStr) {
+        setIsCheckedInToday(true);
+        alert('🚫 이미 오늘 출석을 완료하셨습니다.');
+        return;
+      }
+
+      if (!profileCheck) {
+        await supabase.from('user_profiles').insert([
+          {
+            user_id: currentUserId,
+            nickname: userNickname || '특무 요원',
+            exp: 0,
+            clearance_level: isAdmin ? 1 : 5,
+          },
+        ]);
+      } else if (!profileCheck.nickname) {
+        await supabase.from('user_profiles').update({ nickname: userNickname || '특무 요원' }).eq('user_id', currentUserId);
+      }
+
+      // 2. 💡 가장 중요: 경험치를 추가하기 "전에" 출석 기록을 확실히 업데이트하여 락업 생성
+      const { error: updateError } = await supabase
+        .from('user_profiles')
+        .update({ last_checkin: todayStr })
+        .eq('user_id', currentUserId);
+
+      if (updateError) {
+        throw new Error('출석 기록 업데이트 통신에 실패했습니다.');
+      }
+
+      // 3. 기록 각인 성공 시에만 안전하게 경험치 추가 부여
+      const { error: rpcError } = await supabase.rpc('add_user_exp', {
+        target_user_id: currentUserId,
+        exp_to_add: addedExp,
+      });
+
+      if (rpcError) {
+        throw new Error('경험치 추가 통신에 실패했습니다.');
+      }
+
+      setIsCheckedInToday(true);
+      await fetchUserProfile(currentUserId, userNickname, isAdmin);
+      alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
+
+    } catch (err: any) {
+      alert(`❌ [오류 발생] ${err.message}`);
+    } finally {
+      setIsCheckingIn(false);
     }
-
-    const { error: rpcError } = await supabase.rpc('add_user_exp', {
-      target_user_id: currentUserId,
-      exp_to_add: addedExp,
-    });
-
-    if (rpcError) {
-      alert('출석 체크 오류: ' + rpcError.message);
-      return;
-    }
-
-    await supabase.from('user_profiles').update({ last_checkin: todayStr }).eq('user_id', currentUserId);
-
-    setIsCheckedInToday(true);
-    await fetchUserProfile(currentUserId, userNickname, isAdmin);
-    alert(`🎉 [일일 보안 출석 완료] 경험치 +${addedExp} EXP를 습득하셨습니다!`);
   };
 
   const fetchNotifications = async (userId: string) => {
@@ -703,7 +742,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 💡 [수정 완료] UserBadgesModal 컴포넌트 규격에 맞춰 userId 속성 추가 */}
       {showBadgesModal && (
         <UserBadgesModal
           userId={currentUserId}
@@ -863,15 +901,21 @@ export default function DashboardPage() {
 
                 <button
                   onClick={handleCheckIn}
-                  disabled={isCheckedInToday}
+                  disabled={isCheckedInToday || isCheckingIn}
                   className={`w-full text-xs py-2 rounded font-bold border flex items-center justify-center space-x-1.5 transition-all cursor-pointer ${
-                    isCheckedInToday
+                    isCheckedInToday || isCheckingIn
                       ? 'bg-neutral-900 border-neutral-800 text-neutral-500 cursor-not-allowed'
                       : 'bg-red-950 hover:bg-red-900 border-red-800 text-red-300 animate-pulse'
                   }`}
                 >
                   <CalendarCheck className="w-3.5 h-3.5" />
-                  <span>{isCheckedInToday ? '오늘 출석 완료 (+20 EXP)' : '📅 일일 출석 체크 (+20 EXP)'}</span>
+                  <span>
+                    {isCheckingIn 
+                      ? '통신 중...' 
+                      : isCheckedInToday 
+                        ? '오늘 출석 완료 (+20 EXP)' 
+                        : '📅 일일 출석 체크 (+20 EXP)'}
+                  </span>
                 </button>
               </div>
             )}
