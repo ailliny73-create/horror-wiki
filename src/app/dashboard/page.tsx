@@ -11,7 +11,7 @@ import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit,
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
-import UserBadges from '@/components/UserBadges';
+import UserBadgesModal from '@/components/UserBadgesModal'; // 💡 훈장 팝업 모달 임포트
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -22,7 +22,10 @@ export default function DashboardPage() {
   const [suggestions, setSuggestions] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
+  
+  const [activeBadgeCode, setActiveBadgeCode] = useState<string>('novice');
   const [activeBadgeName, setActiveBadgeName] = useState<string>('신규 요원');
+  const [showBadgesModal, setShowBadgesModal] = useState(false); // 💡 훈장 모달 토글 상태
   
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
@@ -135,6 +138,24 @@ export default function DashboardPage() {
       setUserLevel(level);
       setIsCheckedInToday(data.last_checkin === todayStr);
 
+      if (data.active_badge) {
+        setActiveBadgeCode(data.active_badge);
+        const badgeMap: any = {
+          novice: '신규 요원',
+          reporter: '기밀 제보자',
+          night_owl: '심야의 관측자',
+          debater: '토론의 주파수',
+          disaster: '재앙의 경보병',
+          survivor: '사망전대 생존자',
+          global: '글로벌 관제사',
+          veteran: '베테랑 감시관',
+          elite: '최정예 요원',
+        };
+        if (badgeMap[data.active_badge]) {
+          setActiveBadgeName(badgeMap[data.active_badge]);
+        }
+      }
+
       if (level !== data.clearance_level && !admin) {
         await supabase.from('user_profiles').update({ clearance_level: level }).eq('user_id', userId);
       }
@@ -147,6 +168,7 @@ export default function DashboardPage() {
           nickname: nickname || '특무 요원',
           exp: initialExp,
           clearance_level: initialLevel,
+          active_badge: 'novice',
         },
       ]);
       setUserExp(initialExp);
@@ -606,6 +628,23 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* 💡 훈장 관리 모달 팝업 창 */}
+      {showBadgesModal && (
+        <UserBadgesModal
+          userId={currentUserId}
+          userExp={userExp}
+          reportCount={userReportCount}
+          commentCount={0}
+          deathCount={0}
+          activeBadge={activeBadgeCode}
+          onClose={() => setShowBadgesModal(false)}
+          onBadgeChange={(code, name) => {
+            setActiveBadgeCode(code);
+            setActiveBadgeName(name);
+          }}
+        />
+      )}
+
       <aside className="w-full md:w-64 bg-neutral-900/90 border-r border-neutral-800 p-5 flex flex-col justify-between shrink-0 space-y-6">
         <div className="space-y-6">
           <div 
@@ -722,6 +761,15 @@ export default function DashboardPage() {
                     </div>
                   )}
                 </div>
+
+                {/* 💡 [내 훈장 관리 팝업 열기 버튼] */}
+                <button
+                  onClick={() => setShowBadgesModal(true)}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-[11px] py-1.5 rounded font-bold flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
+                >
+                  <Award className="w-3.5 h-3.5 text-red-500" />
+                  <span>🎖️ 내 수훈 훈장 및 칭호 관리</span>
+                </button>
 
                 <div className="space-y-1">
                   <div className="flex justify-between text-[9px] text-neutral-500">
@@ -942,6 +990,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* 💡 메인 화면에서는 훈장 위젯을 치우고 지도와 생존 테스트만 깔끔하게 배치 */}
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -951,17 +1000,6 @@ export default function DashboardPage() {
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
             </div>
           </div>
-        )}
-
-        {!showSuggestionsToggle && (
-          <UserBadges 
-            userId={currentUserId}
-            userExp={userExp} 
-            reportCount={userReportCount} 
-            commentCount={0} 
-            deathCount={0}
-            onBadgeChange={(badgeName) => setActiveBadgeName(badgeName)}
-          />
         )}
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
