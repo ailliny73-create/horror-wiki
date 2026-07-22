@@ -13,7 +13,7 @@ import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
 import ActiveAgentsWidget from '@/components/ActiveAgentsWidget';
-import CommandCenterHub from '@/components/CommandCenterHub'; // 💡 신규 통제실 허브 임포트
+import CommandCenterHub from '@/components/CommandCenterHub';
 
 const getKSTDateString = () => {
   const now = new Date();
@@ -1215,7 +1215,6 @@ export default function DashboardPage() {
               <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
             
-            {/* 💡 [우측 영역] 생존 테스트, 실시간 접속자 현황, 그리고 신규 통제실 허브(무전/가챠/투표) 장착 완료 */}
             <div className="order-2 w-full space-y-4">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
               <CommandCenterHub currentUserId={currentUserId} userNickname={userNickname} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
