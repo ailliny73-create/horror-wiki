@@ -36,7 +36,6 @@ export default function DashboardPage() {
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // 💡 실시간 훈장 조건 카운트 상태
   const [userCommentCount, setUserCommentCount] = useState<number>(0);
   const [userDeathCount, setUserDeathCount] = useState<number>(0);
 
@@ -105,7 +104,7 @@ export default function DashboardPage() {
 
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
-        await fetchUserBadgeStats(user.id); // 💡 실시간 댓글 및 사망 통계 조회
+        await fetchUserBadgeStats(user.id);
 
         if (isUserAdmin) {
           await fetchSuggestions();
@@ -119,27 +118,29 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 실시간 댓글 수 및 사망 횟수 데이터베이스 조회 함수
+  // 💡 데이터 직접 조회 방식으로 댓글 수 및 사망 횟수 카운트 개선
   const fetchUserBadgeStats = async (userId: string) => {
-    // 1. 내가 작성한 댓글 수 조회
-    const { count: commentCount } = await supabase
-      .from('comments')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId);
+    try {
+      const { data: commentsData } = await supabase
+        .from('comments')
+        .select('id')
+        .eq('user_id', userId);
 
-    if (commentCount !== null) {
-      setUserCommentCount(commentCount);
-    }
+      if (commentsData) {
+        setUserCommentCount(commentsData.length);
+      }
 
-    // 2. 내가 겪은 사망 횟수 조회
-    const { count: deathCount } = await supabase
-      .from('survival_logs')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', userId)
-      .eq('result_type', 'death');
+      const { data: survivalData } = await supabase
+        .from('survival_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('result_type', 'death');
 
-    if (deathCount !== null) {
-      setUserDeathCount(deathCount);
+      if (survivalData) {
+        setUserDeathCount(survivalData.length);
+      }
+    } catch (e) {
+      console.error('Badge stats fetch error:', e);
     }
   };
 
@@ -465,7 +466,7 @@ export default function DashboardPage() {
       if (currentUserId) {
         await supabase.rpc('add_user_exp', { target_user_id: currentUserId, exp_to_add: 5 });
         await fetchUserProfile(currentUserId, userNickname, isAdmin);
-        await fetchUserBadgeStats(currentUserId); // 💡 댓글 작성 시 즉시 카운트 갱신
+        await fetchUserBadgeStats(currentUserId);
       }
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
         await supabase.from('notifications').insert([
@@ -501,7 +502,7 @@ export default function DashboardPage() {
       alert('Error: ' + error.message);
     } else {
       if (currentUserId) {
-        await fetchUserBadgeStats(currentUserId); // 💡 답글 작성 시 즉시 카운트 갱신
+        await fetchUserBadgeStats(currentUserId);
       }
       setReplyText('');
       setReplyTargetId(null);
@@ -664,7 +665,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 💡 실시간 댓글 수(userCommentCount)와 사망 횟수(userDeathCount) 전달 */}
       {showBadgesModal && (
         <UserBadgesModal
           userId={currentUserId}
@@ -799,7 +799,10 @@ export default function DashboardPage() {
                 </div>
 
                 <button
-                  onClick={() => setShowBadgesModal(true)}
+                  onClick={() => {
+                    fetchUserBadgeStats(currentUserId || '');
+                    setShowBadgesModal(true);
+                  }}
                   className="w-full bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-[11px] py-1.5 rounded font-bold flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
                 >
                   <Award className="w-3.5 h-3.5 text-red-500" />
