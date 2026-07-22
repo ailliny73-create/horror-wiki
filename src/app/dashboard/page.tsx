@@ -9,6 +9,11 @@ import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
 import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock } from 'lucide-react';
 
+// 💡 새로 추가된 사령부 특수 컴포넌트 임포트
+import AnomalyMap from '@/components/AnomalyMap';
+import SurvivalTest from '@/components/SurvivalTest';
+import UserBadges from '@/components/UserBadges';
+
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
   const t = translations[lang];
@@ -191,7 +196,6 @@ export default function DashboardPage() {
     const todayStr = new Date().toISOString().split('T')[0];
     const addedExp = 20;
 
-    // 💡 [출석 체크 시 닉네임 누락 원천 방어]
     const { data: profileCheck } = await supabase
       .from('user_profiles')
       .select('*')
@@ -541,6 +545,8 @@ export default function DashboardPage() {
   const freeBoardCount = reports.filter((r) => r.category === '자유 게시판' && !r.is_notice).length;
   const highDangerCount = reports.filter((r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')).length;
   const noticeCount = reports.filter((r) => r.is_notice).length;
+
+  const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
   const filteredReports = reports.filter((report) => {
     if (hideNotices && report.is_notice && activeTab !== '공지사항') return false;
@@ -921,6 +927,22 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* 💡 새로 추가된 특수 기능 위젯들 (레이더 맵, 생존 테스트, 수훈 훈장) */}
+        {!showSuggestionsToggle && (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="md:col-span-2">
+              <AnomalyMap reports={reports} />
+            </div>
+            <div className="space-y-4">
+              <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
+            </div>
+          </div>
+        )}
+
+        {!showSuggestionsToggle && (
+          <UserBadges userExp={userExp} reportCount={userReportCount} />
+        )}
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
           <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
