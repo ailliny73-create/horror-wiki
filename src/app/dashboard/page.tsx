@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, Lock, EyeOff, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock } from 'lucide-react';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -15,64 +15,63 @@ export default function DashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [reports, setReports] = useState<any[]>([]);
+  const [suggestions, setSuggestions] = useState<any[]>([]);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [userNickname, setUserNickname] = useState<string>('');
   
-  // ✏️ 닉네임 수정 상태
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
   const [savingNickname, setSavingNickname] = useState(false);
 
-  // 🎮 유저 경험치 및 등급 상태
   const [userExp, setUserExp] = useState<number>(0);
   const [userLevel, setUserLevel] = useState<number>(5);
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // 🚨 괴이 404 신호 간섭 상태
   const [showFake404, setShowFake404] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
   const [currentMilestone, setCurrentMilestone] = useState<number>(10);
 
-  // 🔔 알림 상태
   const [notifications, setNotifications] = useState<any[]>([]);
   const [showNotiDropdown, setShowNotiDropdown] = useState(false);
 
-  // 📢 공지사항 접기/펼치기 상태
   const [hideNotices, setHideNotices] = useState(false);
 
-  // 검색 및 필터 상태
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항'>('전체');
+  
+  const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
   const [dangerFilter, setDangerFilter] = useState<string>('전체');
 
-  // 모달 및 게시글 상태
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
+  const [selectedSuggestion, setSelectedSuggestion] = useState<any | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
   const [editLocation, setEditLocation] = useState('');
   const [editDangerLevel, setEditDangerLevel] = useState('');
+  const [editTagsInput, setEditTagsInput] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
-  // 🌐 상세보기 모달 실시간 번역 상태
-  const [isModalTranslated, setIsModalTranslated] = useState(false);
+  const [modalTranslateMode, setModalTranslateMode] = useState<'original' | 'kr' | 'en'>('original');
   const [modalTranslatedTitle, setModalTranslatedTitle] = useState('');
   const [modalTranslatedContent, setModalTranslatedContent] = useState('');
+  const [modalEnglishTitle, setModalEnglishTitle] = useState('');
+  const [modalEnglishContent, setModalEnglishContent] = useState('');
   const [modalTranslating, setModalTranslating] = useState(false);
 
-  // 🌐 게시글 목록 전체 실시간 번역 상태
   const [isListTranslated, setIsListTranslated] = useState(false);
   const [listTranslating, setListTranslating] = useState(false);
   const [translatedMap, setTranslatedMap] = useState<{ [id: string]: { title: string; content: string } }>({});
 
-  // 댓글 및 답글 상태
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [replyTargetId, setReplyTargetId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
   const [commentLoading, setCommentLoading] = useState(false);
+
+  const [revealedSet, setRevealedSet] = useState<{ [key: string]: boolean }>({});
 
   const router = useRouter();
 
@@ -94,6 +93,10 @@ export default function DashboardPage() {
 
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
+
+        if (isUserAdmin) {
+          await fetchSuggestions();
+        }
       }
       await fetchReports();
     } catch (err) {
@@ -103,12 +106,13 @@ export default function DashboardPage() {
     }
   };
 
+  // 💡 [개정된 상향 계급별 필요 경험치 계산 로직]
   const calculateLevel = (exp: number, admin: boolean) => {
     if (admin) return 1;
-    if (exp >= 1000) return 1;
-    if (exp >= 600) return 2;
-    if (exp >= 300) return 3;
-    if (exp >= 100) return 4;
+    if (exp >= 3000) return 1;
+    if (exp >= 1500) return 2;
+    if (exp >= 700) return 3;
+    if (exp >= 300) return 4;
     return 5;
   };
 
@@ -136,7 +140,7 @@ export default function DashboardPage() {
       await supabase.from('user_profiles').insert([
         {
           user_id: userId,
-          nickname: nickname,
+          nickname: nickname || '특무 요원',
           exp: initialExp,
           clearance_level: initialLevel,
         },
@@ -157,7 +161,6 @@ export default function DashboardPage() {
 
     const upperNick = trimmed.toUpperCase();
     const forbiddenKeywords = ['ADMIN', '관리자', '사령관', '최고관리자', '특무사령관'];
-    
     const isForbidden = forbiddenKeywords.some((keyword) => upperNick.includes(keyword.toUpperCase()));
 
     if (isForbidden && !isAdmin) {
@@ -167,17 +170,10 @@ export default function DashboardPage() {
 
     setSavingNickname(true);
     try {
-      const { error: authError } = await supabase.auth.updateUser({
-        data: { nickname: trimmed },
-      });
-
+      const { error: authError } = await supabase.auth.updateUser({ data: { nickname: trimmed } });
       if (authError) throw authError;
 
-      const { error: profileError } = await supabase
-        .from('user_profiles')
-        .update({ nickname: trimmed })
-        .eq('user_id', currentUserId);
-
+      const { error: profileError } = await supabase.from('user_profiles').update({ nickname: trimmed }).eq('user_id', currentUserId);
       if (profileError) throw profileError;
 
       setUserNickname(trimmed);
@@ -196,6 +192,26 @@ export default function DashboardPage() {
     const todayStr = new Date().toISOString().split('T')[0];
     const addedExp = 20;
 
+    // 💡 [출석 체크 시 닉네임 누락 방지 방어 로직]
+    const { data: profileCheck } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', currentUserId)
+      .single();
+
+    if (!profileCheck) {
+      await supabase.from('user_profiles').insert([
+        {
+          user_id: currentUserId,
+          nickname: userNickname || '특무 요원',
+          exp: 0,
+          clearance_level: isAdmin ? 1 : 5,
+        },
+      ]);
+    } else if (!profileCheck.nickname) {
+      await supabase.from('user_profiles').update({ nickname: userNickname || '특무 요원' }).eq('user_id', currentUserId);
+    }
+
     const { error: rpcError } = await supabase.rpc('add_user_exp', {
       target_user_id: currentUserId,
       exp_to_add: addedExp,
@@ -206,10 +222,7 @@ export default function DashboardPage() {
       return;
     }
 
-    await supabase
-      .from('user_profiles')
-      .update({ last_checkin: todayStr })
-      .eq('user_id', currentUserId);
+    await supabase.from('user_profiles').update({ last_checkin: todayStr }).eq('user_id', currentUserId);
 
     setIsCheckedInToday(true);
     await fetchUserProfile(currentUserId, userNickname, isAdmin);
@@ -217,36 +230,20 @@ export default function DashboardPage() {
   };
 
   const fetchNotifications = async (userId: string) => {
-    const { data } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      setNotifications(data);
-    }
+    const { data } = await supabase.from('notifications').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (data) setNotifications(data);
   };
 
   const fetchReports = async () => {
-    const { data, error } = await supabase
-      .from('reports')
-      .select('*')
-      .order('is_notice', { ascending: false })
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('reports').select('*').order('is_notice', { ascending: false }).order('created_at', { ascending: false });
 
     if (!error && data) {
       setReports(data);
-
-      const hazardReportsCount = data.filter(
-        (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
-      ).length;
-
+      const hazardReportsCount = data.filter((r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice).length;
       const validMilestones = [10, 50, 100, 150, 200, 250, 300, 350, 400, 450, 500];
-      
+
       if (validMilestones.includes(hazardReportsCount)) {
         const milestoneKey = `anomaly_404_shown_${hazardReportsCount}`;
-        
         if (!sessionStorage.getItem(milestoneKey)) {
           setCurrentMilestone(hazardReportsCount);
           setShowFake404(true);
@@ -264,24 +261,42 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [괄호 단위 부분 검열 지원 maskText 함수 ((가릴단어))]
-  const maskText = (text: string, requiredLevel: number = 5) => {
+  const fetchSuggestions = async () => {
+    const { data, error } = await supabase.from('suggestions').select('*').order('created_at', { ascending: false });
+    if (!error && data) setSuggestions(data);
+  };
+
+  const renderMaskedText = (text: string, scopeKey: string = '') => {
     if (!text) return '';
+    const parts = text.split(/(\(\(.*?\)\))/g);
 
-    // 권한 등급이 만족되면 괄호 기호만 제거 후 원문 반환
-    if (userLevel <= requiredLevel) {
-      return text.replace(/\(\((.*?)\)\)/g, '$1');
-    }
+    return parts.map((part, index) => {
+      const match = part.match(/^\(\((.*?)\)\)$/);
+      if (match) {
+        const innerText = match[1];
+        const uniqueKey = `${scopeKey}-${index}-${innerText}`;
+        const isRevealedOnMobile = !!revealedSet[uniqueKey];
 
-    // ((가릴단어)) 형태로 감싸져 있다면 해당 단어만 글자 수만큼 ■ 마스킹
-    const hasSpecificMask = /\(\(.*?\)\)/g.test(text);
-
-    if (hasSpecificMask) {
-      return text.replace(/\(\((.*?)\)\)/g, (_, p1) => '■'.repeat(p1.length));
-    }
-
-    // 괄호 태그가 없는데 인가 등급이 부족한 글은 전체 마스킹
-    return '■'.repeat(Math.min(text.length, 120)) + ' [보안 인가 등급 부족으로 가림 처리됨]';
+        return (
+          <span
+            key={index}
+            onClick={(e) => {
+              e.stopPropagation();
+              setRevealedSet((prev) => ({ ...prev, [uniqueKey]: !prev[uniqueKey] }));
+            }}
+            title="🔒 [사령부 기밀] 마우스 호버 또는 터치 시 단어 해독"
+            className={`px-1.5 py-0.5 rounded transition-all duration-200 cursor-pointer select-none font-bold inline-block mx-0.5 shadow-xs border ${
+              isRevealedOnMobile
+                ? 'bg-red-950 text-red-300 border-red-600'
+                : 'bg-neutral-800 text-neutral-800 hover:bg-red-950/80 hover:text-red-300 border-neutral-700/60 hover:border-red-600/80'
+            }`}
+          >
+            {innerText}
+          </span>
+        );
+      }
+      return part;
+    });
   };
 
   const handleOpenDetail = async (report: any) => {
@@ -290,21 +305,29 @@ export default function DashboardPage() {
     setEditContent(report.content);
     setEditLocation(report.location || '');
     setEditDangerLevel(report.danger_level || 'LEVEL 1 (경미)');
+    setEditTagsInput(report.tags ? report.tags.join(', ') : '');
     setIsEditing(false);
     setReplyTargetId(null);
     setReplyText('');
 
-    setIsModalTranslated(false);
+    setModalTranslateMode('original');
     setModalTranslatedTitle('');
     setModalTranslatedContent('');
+    setModalEnglishTitle('');
+    setModalEnglishContent('');
 
     await fetchComments(report.id);
   };
 
-  const handleToggleModalTranslate = async () => {
+  const handleModalTranslate = async (targetMode: 'original' | 'kr' | 'en') => {
     if (!selectedReport) return;
 
-    if (!isModalTranslated) {
+    if (targetMode === 'original') {
+      setModalTranslateMode('original');
+      return;
+    }
+
+    if (targetMode === 'kr') {
       if (!modalTranslatedContent) {
         setModalTranslating(true);
         const [transTitle, transContent] = await Promise.all([
@@ -315,9 +338,28 @@ export default function DashboardPage() {
         setModalTranslatedContent(transContent);
         setModalTranslating(false);
       }
-      setIsModalTranslated(true);
-    } else {
-      setIsModalTranslated(false);
+      setModalTranslateMode('kr');
+    } else if (targetMode === 'en') {
+      if (!modalEnglishContent) {
+        setModalTranslating(true);
+        try {
+          const resTitle = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(selectedReport.title)}`);
+          const jsonTitle = await resTitle.json();
+          const enTitle = jsonTitle[0].map((item: any) => item[0]).join('');
+
+          const resContent = await fetch(`https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodeURIComponent(selectedReport.content)}`);
+          const jsonContent = await resContent.json();
+          const enContent = jsonContent[0].map((item: any) => item[0]).join('');
+
+          setModalEnglishTitle(enTitle);
+          setModalEnglishContent(enContent);
+        } catch (e) {
+          setModalEnglishTitle(selectedReport.title);
+          setModalEnglishContent(selectedReport.content);
+        }
+        setModalTranslating(false);
+      }
+      setModalTranslateMode('en');
     }
   };
 
@@ -332,10 +374,7 @@ export default function DashboardPage() {
             translateToKorean(report.title),
             translateToKorean(report.content),
           ]);
-          newMap[report.id] = {
-            title: transTitle,
-            content: transContent,
-          };
+          newMap[report.id] = { title: transTitle, content: transContent };
         }
         setTranslatedMap(newMap);
         setListTranslating(false);
@@ -347,26 +386,13 @@ export default function DashboardPage() {
   };
 
   const fetchComments = async (reportId: string) => {
-    const { data, error } = await supabase
-      .from('comments')
-      .select('*')
-      .eq('report_id', reportId)
-      .order('created_at', { ascending: true });
-
-    if (!error && data) {
-      setComments(data);
-    }
+    const { data, error } = await supabase.from('comments').select('*').eq('report_id', reportId).order('created_at', { ascending: true });
+    if (!error && data) setComments(data);
   };
 
   const handleAddComment = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newComment.trim() || !selectedReport || commentLoading) return;
-
-    if (userLevel > (selectedReport.required_level || 5)) {
-      alert('보안 인가 등급이 부족하여 현장 의견을 남길 수 없습니다.');
-      return;
-    }
-
     setCommentLoading(true);
 
     const { error } = await supabase.from('comments').insert([
@@ -383,13 +409,9 @@ export default function DashboardPage() {
       alert('Error: ' + error.message);
     } else {
       if (currentUserId) {
-        await supabase.rpc('add_user_exp', {
-          target_user_id: currentUserId,
-          exp_to_add: 5,
-        });
+        await supabase.rpc('add_user_exp', { target_user_id: currentUserId, exp_to_add: 5 });
         await fetchUserProfile(currentUserId, userNickname, isAdmin);
       }
-
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
         await supabase.from('notifications').insert([
           {
@@ -400,7 +422,6 @@ export default function DashboardPage() {
           },
         ]);
       }
-
       setNewComment('');
       await fetchComments(selectedReport.id);
     }
@@ -409,7 +430,6 @@ export default function DashboardPage() {
 
   const handleAddReply = async (parentId: string) => {
     if (!replyText.trim() || !selectedReport || commentLoading) return;
-
     setCommentLoading(true);
 
     const { error } = await supabase.from('comments').insert([
@@ -453,25 +473,15 @@ export default function DashboardPage() {
 
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Delete this comment?')) return;
-
     const { error } = await supabase.from('comments').delete().eq('id', commentId);
-
-    if (error) {
-      alert('Error: ' + error.message);
-    } else {
-      await fetchComments(selectedReport.id);
-    }
+    if (!error) await fetchComments(selectedReport.id);
   };
 
   const handleDelete = async (reportId: string) => {
     if (!confirm('Purge this document?')) return;
     setActionLoading(true);
-
     const { error } = await supabase.from('reports').delete().eq('id', reportId);
-
-    if (error) {
-      alert('Error: ' + error.message);
-    } else {
+    if (!error) {
       alert('Document purged.');
       setSelectedReport(null);
       fetchReports();
@@ -479,9 +489,20 @@ export default function DashboardPage() {
     setActionLoading(false);
   };
 
+  const handleDeleteSuggestion = async (sugId: string) => {
+    if (!confirm('해당 건의사항을 파기하시겠습니까?')) return;
+    const { error } = await supabase.from('suggestions').delete().eq('id', sugId);
+    if (!error) {
+      setSelectedSuggestion(null);
+      fetchSuggestions();
+    }
+  };
+
   const handleUpdate = async () => {
     if (!selectedReport) return;
     setActionLoading(true);
+
+    const tags = editTagsInput.split(',').map((tag) => tag.trim().replace(/^#/, '')).filter((tag) => tag.length > 0);
 
     const { error } = await supabase
       .from('reports')
@@ -490,6 +511,7 @@ export default function DashboardPage() {
         content: editContent.trim(),
         location: editLocation.trim(),
         danger_level: editDangerLevel,
+        tags: tags,
       })
       .eq('id', selectedReport.id);
 
@@ -507,34 +529,22 @@ export default function DashboardPage() {
   const unreadNotiCount = notifications.filter((n) => !n.is_read).length;
 
   const getNextExpTarget = (exp: number) => {
-    if (exp >= 1000) return 1000;
-    if (exp >= 600) return 1000;
-    if (exp >= 300) return 600;
-    if (exp >= 100) return 300;
-    return 100;
+    if (exp >= 3000) return 3000;
+    if (exp >= 1500) return 3000;
+    if (exp >= 700) return 1500;
+    if (exp >= 300) return 700;
+    return 300;
   };
   const targetExp = getNextExpTarget(userExp);
   const expProgressPercent = Math.min(Math.round((userExp / targetExp) * 100), 100);
 
-  const hazardReportsCount = reports.filter(
-    (r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice
-  ).length;
-
-  const freeBoardCount = reports.filter(
-    (r) => r.category === '자유 게시판' && !r.is_notice
-  ).length;
-
-  const highDangerCount = reports.filter(
-    (r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')
-  ).length;
-
+  const hazardReportsCount = reports.filter((r) => (r.category === '위험 보고서' || !r.category) && !r.is_notice).length;
+  const freeBoardCount = reports.filter((r) => r.category === '자유 게시판' && !r.is_notice).length;
+  const highDangerCount = reports.filter((r) => r.danger_level?.includes('LEVEL 4') || r.danger_level?.includes('LEVEL 5')).length;
   const noticeCount = reports.filter((r) => r.is_notice).length;
 
   const filteredReports = reports.filter((report) => {
-    if (hideNotices && report.is_notice && activeTab !== '공지사항') {
-      return false;
-    }
-
+    if (hideNotices && report.is_notice && activeTab !== '공지사항') return false;
     if (activeTab === '공지사항' && !report.is_notice) return false;
     if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
     if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
@@ -561,61 +571,56 @@ export default function DashboardPage() {
   const rootComments = comments.filter((c) => !c.parent_id);
   const getReplies = (parentId: string) => comments.filter((c) => c.parent_id === parentId);
 
+  let currentModalTitle = selectedReport?.title || '';
+  let currentModalContent = selectedReport?.content || '';
+  if (modalTranslateMode === 'kr') {
+    currentModalTitle = modalTranslatedTitle;
+    currentModalContent = modalTranslatedContent;
+  } else if (modalTranslateMode === 'en') {
+    currentModalTitle = modalEnglishTitle;
+    currentModalContent = modalEnglishContent;
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 font-mono flex flex-col md:flex-row overflow-x-hidden">
       
-      {/* 🚨 404 괴이 신호 간섭 연출 모달 */}
       {showFake404 && (
         <div className="fixed inset-0 z-50 bg-black/95 flex items-center justify-center p-6 text-center animate-fade-in">
-          <div className="max-w-lg space-y-6 border border-red-900/80 bg-red-950/20 p-8 rounded-lg shadow-2xl shadow-red-950/50 relative overflow-hidden">
+          <div className="max-w-lg space-y-6 border border-red-900/80 bg-red-950/20 p-8 rounded-lg shadow-2xl relative overflow-hidden">
             <div className="absolute top-0 left-0 w-full h-1 bg-red-600 animate-pulse" />
-            <div className="flex justify-center">
-              <AlertTriangle className="w-16 h-16 text-red-600 animate-bounce" />
-            </div>
-
+            <div className="flex justify-center"><AlertTriangle className="w-16 h-16 text-red-600 animate-bounce" /></div>
             <div className="space-y-2">
-              <h1 className="text-4xl font-extrabold text-red-600 tracking-widest font-mono">
-                404 NOT FOUND
-              </h1>
-              <p className="text-xs text-red-400 font-bold tracking-wider">
-                [CRITICAL] SIGNAL INTERFERENCE DETECTED
-              </p>
-            </div>
-
-            <div className="bg-neutral-950 border border-red-900/40 p-4 rounded text-left text-xs text-red-300/90 leading-relaxed space-y-2">
-              <p className="font-bold text-yellow-500">⚠️ [사령부 자동 감지 로그]</p>
-              <p>
-                "축적된 위험 보고서 데이터가 특수 임계치(<span className="font-extrabold text-red-400">{currentMilestone}건 달성</span>)에 도달하면서 주파수 노이즈와 괴이 전파 신호가 사령부 백본망을 침투했습니다..."
-              </p>
-              <p className="text-[11px] text-neutral-400 italic">
-                - 수신된 수수께끼 음성: "우리를 더 많이 기억할수록... 문은 더 빨리 열린다..."
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center space-x-2 text-xs text-neutral-400 pt-2">
-              <RefreshCw className={`w-4 h-4 text-red-500 ${isRestoring ? 'animate-spin' : 'animate-pulse'}`} />
-              <span>
-                {isRestoring ? '긴급 방화벽 가동 및 신호 복구 중...' : '보안 프로토콜 재연결 시도 중 (3초)...'}
-              </span>
+              <h1 className="text-4xl font-extrabold text-red-600 tracking-widest font-mono">404 NOT FOUND</h1>
+              <p className="text-xs text-red-400 font-bold tracking-wider">[CRITICAL] SIGNAL INTERFERENCE DETECTED</p>
             </div>
           </div>
         </div>
       )}
 
-      {/* 📌 좌측 사이드바 패널 */}
       <aside className="w-full md:w-64 bg-neutral-900/90 border-r border-neutral-800 p-5 flex flex-col justify-between shrink-0 space-y-6">
         <div className="space-y-6">
-          <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+          <div 
+            onClick={() => {
+              setActiveTab('전체');
+              setShowSuggestionsToggle(false);
+              setSelectedTag(null);
+              setSearchQuery('');
+            }}
+            className="flex items-center justify-between pb-4 border-b border-neutral-800 cursor-pointer group"
+          >
             <div className="flex items-center space-x-3">
-              <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0" />
+              <ShieldAlert className="w-7 h-7 text-red-600 animate-pulse shrink-0 group-hover:scale-105 transition-transform" />
               <div>
-                <h1 className="text-sm font-extrabold text-red-600 tracking-wider">SPECIAL OPS</h1>
+                <h1 className="text-sm font-extrabold text-red-600 tracking-wider group-hover:text-red-500 transition-colors">SPECIAL OPS</h1>
                 <span className="text-[10px] text-neutral-500">Classified Dashboard</span>
               </div>
             </div>
 
             <button
-              onClick={() => setShowNotiDropdown(!showNotiDropdown)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowNotiDropdown(!showNotiDropdown);
+              }}
               className="relative p-2 bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 rounded text-neutral-300 transition-colors cursor-pointer"
             >
               <Bell className="w-4 h-4 text-neutral-400" />
@@ -746,17 +751,17 @@ export default function DashboardPage() {
               { id: '자유 게시판', name: t.freeBoard, icon: Radio },
             ].map((tab) => {
               const Icon = tab.icon;
+              const isSelected = activeTab === tab.id && !showSuggestionsToggle;
               return (
                 <button
                   key={tab.id}
                   onClick={() => {
                     setActiveTab(tab.id as any);
-                    if (tab.id === '공지사항') {
-                      setHideNotices(false);
-                    }
+                    setShowSuggestionsToggle(false);
+                    if (tab.id === '공지사항') setHideNotices(false);
                   }}
                   className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer ${
-                    activeTab === tab.id
+                    isSelected
                       ? 'bg-red-950/80 border border-red-800/80 text-white'
                       : 'text-neutral-400 hover:bg-neutral-800/50 hover:text-white'
                   }`}
@@ -766,9 +771,28 @@ export default function DashboardPage() {
                 </button>
               );
             })}
+
+            {isAdmin && (
+              <button
+                onClick={() => setShowSuggestionsToggle(!showSuggestionsToggle)}
+                className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border ${
+                  showSuggestionsToggle
+                    ? 'bg-purple-950 border-purple-700 text-purple-200 shadow-md shadow-purple-950/50'
+                    : 'bg-neutral-950 border-neutral-800 text-purple-400 hover:bg-purple-950/40'
+                }`}
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Lock className="w-4 h-4 text-purple-400 animate-pulse" />
+                  <span>건의사항 함 (실시간)</span>
+                </div>
+                <span className="bg-purple-900/80 text-purple-200 text-[10px] px-1.5 py-0.2 rounded-full">
+                  {suggestions.length}
+                </span>
+              </button>
+            )}
           </nav>
 
-          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && (
+          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && !showSuggestionsToggle && (
             <div className="space-y-2 pt-2 border-t border-neutral-800">
               <span className="text-[10px] text-neutral-500 flex items-center space-x-1 font-bold">
                 <Filter className="w-3 h-3 text-red-600" />
@@ -805,7 +829,6 @@ export default function DashboardPage() {
         </button>
       </aside>
 
-      {/* 🔔 알림 팝업 모달 */}
       {showNotiDropdown && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-start justify-center pt-20 sm:pt-24 p-4">
           <div className="w-full max-w-sm bg-neutral-900 border border-neutral-800 rounded-lg shadow-2xl p-4 space-y-3 relative">
@@ -864,10 +887,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 📄 우측 메인 콘텐츠 영역 */}
       <main className="flex-1 p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 📊 실시간 현황 통계 위젯 */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-neutral-900/60 border border-neutral-800 p-3.5 rounded-lg flex items-center space-x-3">
             <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
@@ -902,15 +923,14 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 🌐 게시글 목록 전체 한국어 번역 제어용 바 및 공지 숨기기 토글 스위치 */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-900/80 border border-neutral-800 p-3.5 rounded-lg gap-3">
           <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
             <Languages className="w-4 h-4 text-red-500" />
-            <span>실시간 외국어 게시글 한국어 번역 시스템</span>
+            <span>실시간 외국어 게시글 다국어 번역 시스템</span>
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {noticeCount > 0 && activeTab !== '공지사항' && (
+            {noticeCount > 0 && activeTab !== '공지사항' && !showSuggestionsToggle && (
               <button
                 onClick={() => setHideNotices(!hideNotices)}
                 className="text-xs bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1"
@@ -940,146 +960,199 @@ export default function DashboardPage() {
                   <span>목록 실시간 번역 중...</span>
                 </>
               ) : (
-                <span>{isListTranslated ? '↩️ 원문 목록 보기' : '🇰🇷 목록 전체 번역하기'}</span>
+                <span>{isListTranslated ? '↩️ 원문 목록 보기' : '🇰🇷 목록 전체 한국어 번역'}</span>
               )}
             </button>
           </div>
         </div>
 
-        <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
-          <div className="relative">
-            <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder={t.searchPlaceholder}
-              className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-2.5 text-neutral-500 hover:text-white text-xs cursor-pointer"
-              >
-                ✕
-              </button>
+        {!showSuggestionsToggle && (
+          <div className="bg-neutral-900/60 border border-neutral-800 p-4 rounded-lg space-y-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder={t.searchPlaceholder}
+                className="w-full bg-neutral-950 border border-neutral-800 rounded pl-10 pr-4 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3 top-2.5 text-neutral-500 hover:text-white text-xs cursor-pointer"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
+
+            {selectedTag && (
+              <div className="flex items-center space-x-2 text-xs">
+                <span className="text-neutral-500">Selected Tag:</span>
+                <span className="bg-red-950 border border-red-800 text-red-300 px-2 py-0.5 rounded flex items-center space-x-1">
+                  <span>#{selectedTag}</span>
+                  <button onClick={() => setSelectedTag(null)} className="hover:text-white cursor-pointer">✕</button>
+                </span>
+              </div>
             )}
           </div>
+        )}
 
-          {selectedTag && (
-            <div className="flex items-center space-x-2 text-xs">
-              <span className="text-neutral-500">Selected Tag:</span>
-              <span className="bg-red-950 border border-red-800 text-red-300 px-2 py-0.5 rounded flex items-center space-x-1">
-                <span>#{selectedTag}</span>
-                <button onClick={() => setSelectedTag(null)} className="hover:text-white cursor-pointer">✕</button>
-              </span>
+        {showSuggestionsToggle && isAdmin ? (
+          <div className="space-y-4 animate-fade-in">
+            <div className="bg-purple-950/30 border border-purple-900/60 p-4 rounded-lg flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <Lock className="w-6 h-6 text-purple-400 shrink-0" />
+                <div>
+                  <h2 className="text-sm font-bold text-purple-300">최고 관리자 전용 실시간 비공개 건의사항 제보함</h2>
+                  <p className="text-[11px] text-neutral-400">일반 요원들이 사령부에 보낸 익명 건의 및 제보 내역 ({suggestions.length}건)</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowSuggestionsToggle(false)}
+                className="bg-neutral-800 hover:bg-neutral-700 text-xs px-3 py-1.5 rounded text-neutral-300 cursor-pointer"
+              >
+                닫기 ✕
+              </button>
             </div>
-          )}
-        </div>
 
-        {loading ? (
-          <div className="text-center text-xs text-neutral-500 py-16">Loading Classified Database...</div>
-        ) : filteredReports.length === 0 ? (
-          <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
-            <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
-            <p>{t.noDocs}</p>
+            {suggestions.length === 0 ? (
+              <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded">
+                접수된 건의사항이 없습니다.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {suggestions.map((sug) => (
+                  <div
+                    key={sug.id}
+                    onClick={() => setSelectedSuggestion(sug)}
+                    className="bg-neutral-900 border border-neutral-800 p-4 rounded-lg space-y-2 cursor-pointer hover:border-purple-900 transition-all"
+                  >
+                    <div className="flex justify-between items-center text-xs border-b border-neutral-800 pb-2">
+                      <span className="font-bold text-purple-400">{sug.title}</span>
+                      <span className="text-[10px] text-neutral-500">{new Date(sug.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-neutral-300 line-clamp-2">{sug.content}</p>
+                    <div className="text-[10px] text-neutral-500 flex justify-between">
+                      <span>제보자: {sug.author_nickname} 요원</span>
+                      <span className="text-purple-400 hover:underline">상세보기 &gt;</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {filteredReports.map((report) => {
-              const reqLevel = report.required_level || 5;
-              const isRestricted = userLevel > reqLevel;
+          <>
+            {loading ? (
+              <div className="text-center text-xs text-neutral-500 py-16">Loading Classified Database...</div>
+            ) : filteredReports.length === 0 ? (
+              <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
+                <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
+                <p>{t.noDocs}</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {filteredReports.map((report) => {
+                  const displayTitle = (isListTranslated && translatedMap[report.id]?.title) ? translatedMap[report.id].title : report.title;
+                  const displayContent = (isListTranslated && translatedMap[report.id]?.content) ? translatedMap[report.id].content : report.content;
 
-              const displayTitle = (isListTranslated && translatedMap[report.id]?.title) 
-                ? translatedMap[report.id].title 
-                : report.title;
+                  return (
+                    <div
+                      key={report.id}
+                      onClick={() => handleOpenDetail(report)}
+                      className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.005] ${
+                        report.is_notice ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20' : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
+                        <div className="flex items-center space-x-2">
+                          {report.is_notice ? (
+                            <span className="text-xs px-2.5 py-0.5 rounded bg-red-900 text-yellow-300 font-bold flex items-center space-x-1 animate-pulse">
+                              <Megaphone className="w-3 h-3" />
+                              <span>{t.notice}</span>
+                            </span>
+                          ) : (
+                            <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
+                              {report.category || t.report}
+                            </span>
+                          )}
+                          <h3 className="text-base font-bold text-neutral-100">{displayTitle}</h3>
+                        </div>
 
-              const displayContent = (isListTranslated && translatedMap[report.id]?.content) 
-                ? translatedMap[report.id].content 
-                : report.content;
+                        {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
+                          <span className="bg-red-950/80 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
+                            {report.danger_level}
+                          </span>
+                        )}
+                      </div>
 
-              return (
-                <div
-                  key={report.id}
-                  onClick={() => handleOpenDetail(report)}
-                  className={`border p-5 rounded-lg space-y-3 cursor-pointer transition-all hover:scale-[1.005] ${
-                    report.is_notice
-                      ? 'bg-red-950/30 border-red-800/80 hover:border-red-600 shadow-md shadow-red-950/20'
-                      : 'bg-neutral-900/80 border-neutral-800 hover:border-red-900/80'
-                  }`}
-                >
-                  <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
-                    <div className="flex items-center space-x-2">
-                      {report.is_notice ? (
-                        <span className="text-xs px-2.5 py-0.5 rounded bg-red-900 text-yellow-300 font-bold flex items-center space-x-1 animate-pulse">
-                          <Megaphone className="w-3 h-3" />
-                          <span>{t.notice}</span>
-                        </span>
-                      ) : (
-                        <span className="text-xs px-2 py-0.5 rounded bg-neutral-800 text-neutral-400 font-bold">
-                          {report.category || t.report}
-                        </span>
+                      {report.location && report.location !== '자유 게시판' && (
+                        <div className="text-xs text-neutral-400 flex items-center space-x-1.5">
+                          <MapPin className="w-3.5 h-3.5 text-neutral-500" />
+                          <span>{t.location}: {renderMaskedText(report.location, `loc-${report.id}`)}</span>
+                        </div>
                       )}
-                      
-                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold border flex items-center space-x-1 ${
-                        isRestricted 
-                          ? 'bg-red-950 border-red-800 text-red-400' 
-                          : 'bg-neutral-950 border-neutral-800 text-neutral-400'
-                      }`}>
-                        {isRestricted ? <Lock className="w-3 h-3 text-red-500" /> : <Shield className="w-3 h-3 text-yellow-500" />}
-                        <span>보안 {reqLevel}급 인가 필요</span>
-                      </span>
 
-                      <h3 className="text-base font-bold text-neutral-100">{displayTitle}</h3>
+                      <p className="text-xs leading-relaxed line-clamp-2 text-neutral-400">
+                        {renderMaskedText(displayContent, `content-${report.id}`)}
+                      </p>
+
+                      {report.tags && report.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {report.tags.map((tag: string, idx: number) => (
+                            <span
+                              key={idx}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedTag(tag);
+                              }}
+                              className="text-[10px] bg-neutral-950 hover:bg-red-950 text-neutral-400 hover:text-red-300 border border-neutral-800 px-2 py-0.5 rounded cursor-pointer transition-colors"
+                            >
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
+                        <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
+                        <span>{new Date(report.created_at).toLocaleString()}</span>
+                      </div>
                     </div>
-
-                    {!report.is_notice && report.danger_level && report.danger_level !== '일반' && (
-                      <span className="bg-red-950/80 border border-red-900 text-red-400 text-[11px] px-2.5 py-1 rounded">
-                        {report.danger_level}
-                      </span>
-                    )}
-                  </div>
-
-                  {report.location && report.location !== '자유 게시판' && (
-                    <div className="text-xs text-neutral-400 flex items-center space-x-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>{t.location}: {maskText(report.location, reqLevel)}</span>
-                    </div>
-                  )}
-
-                  <p className={`text-xs leading-relaxed line-clamp-2 ${isRestricted ? 'text-red-400/80 font-mono tracking-widest' : 'text-neutral-400'}`}>
-                    {maskText(displayContent, reqLevel)}
-                  </p>
-
-                  {report.tags && report.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {report.tags.map((tag: string, idx: number) => (
-                        <span
-                          key={idx}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTag(tag);
-                          }}
-                          className="text-[10px] bg-neutral-950 hover:bg-red-950 text-neutral-400 hover:text-red-300 border border-neutral-800 px-2 py-0.5 rounded cursor-pointer transition-colors"
-                        >
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="text-[10px] text-neutral-500 border-t border-neutral-800/60 pt-2 flex justify-between items-center">
-                    <span>{t.author}: <strong className="text-neutral-400">{report.author_nickname || 'Agent'}</strong></span>
-                    <span>{new Date(report.created_at).toLocaleString()}</span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+                  );
+                })}
+              </div>
+            )}
+          </>
         )}
       </main>
 
-      {/* 상세보기 모달 */}
+      {selectedSuggestion && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-neutral-900 border border-purple-900 w-full max-w-lg rounded-lg p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
+              <span className="text-xs text-purple-400 font-bold">🔒 비공개 건의사항 제보 상세</span>
+              <button onClick={() => setSelectedSuggestion(null)} className="text-neutral-500 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
+            </div>
+            <h2 className="text-base font-bold text-neutral-100">{selectedSuggestion.title}</h2>
+            <div className="bg-neutral-950 p-4 rounded border border-neutral-800 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
+              {selectedSuggestion.content}
+            </div>
+            <div className="flex justify-between items-center text-[11px] text-neutral-500 border-t border-neutral-800 pt-3">
+              <span>제보자: {selectedSuggestion.author_nickname} 요원</span>
+              <button
+                onClick={() => handleDeleteSuggestion(selectedSuggestion.id)}
+                className="bg-red-950 hover:bg-red-900 text-red-300 px-3 py-1.5 rounded border border-red-900 cursor-pointer"
+              >
+                건의사항 파기(삭제)
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {selectedReport && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-6">
@@ -1087,12 +1160,7 @@ export default function DashboardPage() {
               <span className="text-xs text-red-500 font-bold tracking-wider">
                 [{selectedReport.is_notice ? t.notice : selectedReport.category || t.report}] {t.detailTitle}
               </span>
-              <button
-                onClick={() => setSelectedReport(null)}
-                className="text-neutral-500 hover:text-white cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
+              <button onClick={() => setSelectedReport(null)} className="text-neutral-500 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
 
             {isEditing ? (
@@ -1134,6 +1202,16 @@ export default function DashboardPage() {
                   </>
                 )}
                 <div>
+                  <label className="block text-xs text-neutral-400 mb-1">보안 태그 (Tags)</label>
+                  <input
+                    type="text"
+                    value={editTagsInput}
+                    onChange={(e) => setEditTagsInput(e.target.value)}
+                    placeholder="쉼표(,)로 구분"
+                    className="w-full bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200"
+                  />
+                </div>
+                <div>
                   <label className="block text-xs text-neutral-400 mb-1">Content</label>
                   <textarea
                     rows={6}
@@ -1143,19 +1221,9 @@ export default function DashboardPage() {
                   />
                 </div>
                 <div className="flex justify-end space-x-2 pt-2">
-                  <button
-                    onClick={() => setIsEditing(false)}
-                    className="bg-neutral-800 text-neutral-300 text-xs px-4 py-2 rounded cursor-pointer"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleUpdate}
-                    disabled={actionLoading}
-                    className="bg-red-900 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 cursor-pointer"
-                  >
-                    <Save className="w-3.5 h-3.5" />
-                    <span>Save</span>
+                  <button onClick={() => setIsEditing(false)} className="bg-neutral-800 text-neutral-300 text-xs px-4 py-2 rounded cursor-pointer">Cancel</button>
+                  <button onClick={handleUpdate} disabled={actionLoading} className="bg-red-900 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 cursor-pointer">
+                    <Save className="w-3.5 h-3.5" /><span>Save</span>
                   </button>
                 </div>
               </div>
@@ -1163,9 +1231,7 @@ export default function DashboardPage() {
               <div className="space-y-6">
                 <div className="space-y-3">
                   <div className="flex justify-between items-start gap-2">
-                    <h2 className="text-lg font-bold text-neutral-100">
-                      {isModalTranslated ? modalTranslatedTitle : selectedReport.title}
-                    </h2>
+                    <h2 className="text-lg font-bold text-neutral-100">{currentModalTitle}</h2>
                     {!selectedReport.is_notice && selectedReport.danger_level && selectedReport.danger_level !== '일반' && (
                       <span className="bg-red-950 border border-red-900 text-red-400 text-xs px-2.5 py-1 rounded whitespace-nowrap">
                         {selectedReport.danger_level}
@@ -1173,47 +1239,71 @@ export default function DashboardPage() {
                     )}
                   </div>
 
-                  <div className="flex justify-between items-center bg-neutral-950 border border-neutral-800/80 px-3 py-2 rounded">
+                  <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-neutral-950 border border-neutral-800/80 px-3 py-2.5 rounded gap-2">
                     <span className="text-[11px] text-neutral-400 flex items-center space-x-1">
                       <Languages className="w-3.5 h-3.5 text-red-500" />
-                      <span>{isModalTranslated ? '🌐 한국어 번역 적용 중' : '🌐 다국어 지원 모드'}</span>
+                      <span>
+                        {modalTranslateMode === 'original' && '🌐 다국어 모드 (원본 보기)'}
+                        {modalTranslateMode === 'kr' && '🇰🇷 한국어 실시간 번역 적용 중'}
+                        {modalTranslateMode === 'en' && '🇺🇸 English Translation Active'}
+                      </span>
                     </span>
-                    <button
-                      onClick={handleToggleModalTranslate}
-                      disabled={modalTranslating}
-                      className="text-[11px] bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold px-2.5 py-1 rounded transition-all cursor-pointer flex items-center space-x-1"
-                    >
-                      {modalTranslating ? (
-                        <>
-                          <Loader2 className="w-3 h-3 animate-spin text-red-400" />
-                          <span>번역 변환 중...</span>
-                        </>
-                      ) : (
-                        <span>{isModalTranslated ? '↩️ 원문 보기 (Original)' : '🇰🇷 한국어로 실시간 번역'}</span>
-                      )}
-                    </button>
+
+                    <div className="flex items-center space-x-1.5 w-full sm:w-auto">
+                      <button
+                        onClick={() => handleModalTranslate('original')}
+                        className={`flex-1 sm:flex-none text-[10px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer border ${
+                          modalTranslateMode === 'original' ? 'bg-neutral-800 border-neutral-700 text-white' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        Original
+                      </button>
+                      <button
+                        onClick={() => handleModalTranslate('kr')}
+                        disabled={modalTranslating}
+                        className={`flex-1 sm:flex-none text-[10px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer border ${
+                          modalTranslateMode === 'kr' ? 'bg-red-950 border-red-800 text-red-300' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        {modalTranslating && modalTranslateMode === 'kr' ? 'Translating...' : '🇰🇷 한국어'}
+                      </button>
+                      <button
+                        onClick={() => handleModalTranslate('en')}
+                        disabled={modalTranslating}
+                        className={`flex-1 sm:flex-none text-[10px] font-bold px-2.5 py-1 rounded transition-all cursor-pointer border ${
+                          modalTranslateMode === 'en' ? 'bg-blue-950 border-blue-800 text-blue-300' : 'bg-neutral-900 border-neutral-800 text-neutral-400 hover:text-white'
+                        }`}
+                      >
+                        {modalTranslating && modalTranslateMode === 'en' ? 'Translating...' : '🇺🇸 English'}
+                      </button>
+                    </div>
                   </div>
 
                   {selectedReport.location && selectedReport.location !== '자유 게시판' && (
                     <div className="text-xs text-neutral-400 flex items-center space-x-1">
                       <MapPin className="w-3.5 h-3.5 text-neutral-500" />
-                      <span>{t.location}: {maskText(selectedReport.location, selectedReport.required_level || 5)}</span>
+                      <span>{t.location}: {renderMaskedText(selectedReport.location, `modal-loc-${selectedReport.id}`)}</span>
                     </div>
                   )}
 
-                  {/* 💡 괄호 검열 지원 본문 표시 */}
                   <div className="bg-neutral-950 p-4 rounded border border-neutral-800/80 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
-                    {maskText(isModalTranslated ? modalTranslatedContent : selectedReport.content, selectedReport.required_level || 5)}
+                    {renderMaskedText(currentModalContent, `modal-content-${selectedReport.id}`)}
                   </div>
 
-                  {selectedReport.image_url && userLevel <= (selectedReport.required_level || 5) && (
+                  {selectedReport.tags && selectedReport.tags.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-2">
+                      {selectedReport.tags.map((tag: string, idx: number) => (
+                        <span key={idx} className="text-[10px] bg-neutral-950 text-neutral-400 border border-neutral-800 px-2 py-0.5 rounded">
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {selectedReport.image_url && (
                     <div className="space-y-1">
                       <span className="text-[11px] text-neutral-500">Image Attachment:</span>
-                      <img
-                        src={selectedReport.image_url}
-                        alt="Image Attachment"
-                        className="w-full max-h-96 object-contain rounded border border-neutral-800 bg-neutral-950"
-                      />
+                      <img src={selectedReport.image_url} alt="Image Attachment" className="w-full max-h-96 object-contain rounded border border-neutral-800 bg-neutral-950" />
                     </div>
                   )}
 
@@ -1224,62 +1314,44 @@ export default function DashboardPage() {
 
                   {(isAdmin || (currentUserId && currentUserId === selectedReport.user_id)) && (
                     <div className="flex justify-end space-x-2 border-t border-neutral-800 pt-3">
-                      <button
-                        onClick={() => setIsEditing(true)}
-                        className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer"
-                      >
-                        <Edit className="w-3.5 h-3.5" />
-                        <span>{t.edit}</span>
+                      <button onClick={() => setIsEditing(true)} className="bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-xs px-3 py-1.5 rounded flex items-center space-x-1 cursor-pointer">
+                        <Edit className="w-3.5 h-3.5" /><span>{t.edit}</span>
                       </button>
-                      <button
-                        onClick={() => handleDelete(selectedReport.id)}
-                        disabled={actionLoading}
-                        className="bg-red-950 hover:bg-red-900 text-red-300 text-xs px-3 py-1.5 rounded flex items-center space-x-1 border border-red-900 cursor-pointer"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>{t.delete}</span>
+                      <button onClick={() => handleDelete(selectedReport.id)} disabled={actionLoading} className="bg-red-950 hover:bg-red-900 text-red-300 text-xs px-3 py-1.5 rounded flex items-center space-x-1 border border-red-900 cursor-pointer">
+                        <Trash2 className="w-3.5 h-3.5" /><span>{t.delete}</span>
                       </button>
                     </div>
                   )}
                 </div>
 
-                {/* 💬 댓글 및 답글 스레드 섹션 */}
                 <div className="border-t border-neutral-800 pt-5 space-y-4">
                   <div className="flex items-center space-x-2 text-xs font-bold text-neutral-300">
                     <MessageSquare className="w-4 h-4 text-red-600" />
                     <span>{t.comments} ({comments.length})</span>
                   </div>
 
-                  {userLevel <= (selectedReport.required_level || 5) ? (
-                    <form onSubmit={handleAddComment} className="flex gap-2">
-                      <input
-                        type="text"
-                        required
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder={t.commentPlaceholder}
-                        className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
-                      />
-                      <button
-                        type="submit"
-                        disabled={commentLoading}
-                        className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50"
-                      >
-                        {commentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                        <span>{t.send} (+5 EXP)</span>
-                      </button>
-                    </form>
-                  ) : (
-                    <div className="text-[11px] text-red-500 bg-red-950/20 border border-red-900/50 p-2.5 rounded text-center">
-                      보안 인가 등급이 부족하여 현장 의견을 남길 수 없습니다.
-                    </div>
-                  )}
+                  <form onSubmit={handleAddComment} className="flex gap-2">
+                    <input
+                      type="text"
+                      required
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder={t.commentPlaceholder}
+                      className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-900"
+                    />
+                    <button
+                      type="submit"
+                      disabled={commentLoading}
+                      className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50"
+                    >
+                      {commentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                      <span>{t.send} (+5 EXP)</span>
+                    </button>
+                  </form>
 
                   <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
                     {rootComments.length === 0 ? (
-                      <div className="text-center text-[11px] text-neutral-600 py-4">
-                        {t.noComments}
-                      </div>
+                      <div className="text-center text-[11px] text-neutral-600 py-4">{t.noComments}</div>
                     ) : (
                       rootComments.map((comment) => {
                         const replies = getReplies(comment.id);
@@ -1290,41 +1362,32 @@ export default function DashboardPage() {
                               <div className="flex justify-between items-center">
                                 <span className="font-bold text-red-400">{comment.author_nickname}</span>
                                 <div className="flex items-center space-x-2">
-                                  <span className="text-[10px] text-neutral-600">
-                                    {new Date(comment.created_at).toLocaleString()}
-                                  </span>
+                                  <span className="text-[10px] text-neutral-600">{new Date(comment.created_at).toLocaleString()}</span>
                                   {(isAdmin || currentUserId === comment.user_id) && (
-                                    <button
-                                      onClick={() => handleDeleteComment(comment.id)}
-                                      className="text-neutral-600 hover:text-red-400 cursor-pointer"
-                                    >
-                                      <X className="w-3 h-3" />
+                                    <button onClick={() => handleDeleteComment(comment.id)} className="text-neutral-600 hover:text-red-400 cursor-pointer">
+                                      <X className="w-3.5 h-3.5" />
                                     </button>
                                   )}
                                 </div>
                               </div>
-                              <p className="text-neutral-300 leading-relaxed break-all">
-                                {maskText(comment.content, selectedReport.required_level || 5)}
-                              </p>
+                              <p className="text-neutral-300 leading-relaxed break-all">{renderMaskedText(comment.content, `comment-${comment.id}`)}</p>
 
-                              {userLevel <= (selectedReport.required_level || 5) && (
-                                <div className="pt-1 flex justify-end">
-                                  <button
-                                    onClick={() => {
-                                      if (replyTargetId === comment.id) {
-                                        setReplyTargetId(null);
-                                      } else {
-                                        setReplyTargetId(comment.id);
-                                        setReplyText('');
-                                      }
-                                    }}
-                                    className="text-[10px] text-neutral-500 hover:text-red-400 flex items-center space-x-1 cursor-pointer transition-colors"
-                                  >
-                                    <CornerDownRight className="w-3 h-3" />
-                                    <span>{replyTargetId === comment.id ? '취소' : '답글 달기'}</span>
-                                  </button>
-                                </div>
-                              )}
+                              <div className="pt-1 flex justify-end">
+                                <button
+                                  onClick={() => {
+                                    if (replyTargetId === comment.id) {
+                                      setReplyTargetId(null);
+                                    } else {
+                                      setReplyTargetId(comment.id);
+                                      setReplyText('');
+                                    }
+                                  }}
+                                  className="text-[10px] text-neutral-500 hover:text-red-400 flex items-center space-x-1 cursor-pointer transition-colors"
+                                >
+                                  <CornerDownRight className="w-3.5 h-3.5" />
+                                  <span>{replyTargetId === comment.id ? '취소' : '답글 달기'}</span>
+                                </button>
+                              </div>
                             </div>
 
                             {replyTargetId === comment.id && (
@@ -1351,32 +1414,22 @@ export default function DashboardPage() {
                             {replies.length > 0 && (
                               <div className="pl-6 space-y-2 border-l border-neutral-800 ml-2">
                                 {replies.map((reply) => (
-                                  <div
-                                    key={reply.id}
-                                    className="bg-neutral-900/60 border border-neutral-800/50 p-2.5 rounded space-y-1 text-xs"
-                                  >
+                                  <div key={reply.id} className="bg-neutral-900/60 border border-neutral-800/50 p-2.5 rounded space-y-1 text-xs">
                                     <div className="flex justify-between items-center">
                                       <div className="flex items-center space-x-1.5">
                                         <CornerDownRight className="w-3 h-3 text-red-500" />
                                         <span className="font-bold text-neutral-300">{reply.author_nickname}</span>
                                       </div>
                                       <div className="flex items-center space-x-2">
-                                        <span className="text-[9px] text-neutral-600">
-                                          {new Date(reply.created_at).toLocaleString()}
-                                        </span>
+                                        <span className="text-[9px] text-neutral-600">{new Date(reply.created_at).toLocaleString()}</span>
                                         {(isAdmin || currentUserId === reply.user_id) && (
-                                          <button
-                                            onClick={() => handleDeleteComment(reply.id)}
-                                            className="text-neutral-600 hover:text-red-400 cursor-pointer"
-                                          >
-                                            <X className="w-3 h-3" />
+                                          <button onClick={() => handleDeleteComment(reply.id)} className="text-neutral-600 hover:text-red-400 cursor-pointer">
+                                            <X className="w-3.5 h-3.5" />
                                           </button>
                                         )}
                                       </div>
                                     </div>
-                                    <p className="text-neutral-400 pl-4 leading-relaxed break-all">
-                                      {maskText(reply.content, selectedReport.required_level || 5)}
-                                    </p>
+                                    <p className="text-neutral-400 pl-4 leading-relaxed break-all">{renderMaskedText(reply.content, `reply-${reply.id}`)}</p>
                                   </div>
                                 ))}
                               </div>
