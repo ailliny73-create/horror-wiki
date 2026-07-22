@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  // 💡 도시 괴담 시리즈 카테고리 포함 탭 상태
+  // 💡 '도시 괴담 시리즈' 카테고리 포함 탭 상태
   const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항' | '도시 괴담 시리즈' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
@@ -439,6 +439,8 @@ export default function DashboardPage() {
 
   // 💡 카테고리 필터 로직 (도시 괴담 시리즈 포함)
   const filteredReports = reports.filter((report) => {
+    if (showSuggestionsToggle) return false;
+
     if (activeTab === '내 기록') {
       if (report.user_id !== currentUserId) return false;
     } else {
@@ -609,6 +611,18 @@ export default function DashboardPage() {
                 </button>
               );
             })}
+
+            {isAdmin && (
+              <button
+                onClick={() => setShowSuggestionsToggle(!showSuggestionsToggle)}
+                className={`w-full flex items-center space-x-2.5 px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer mt-2 ${
+                  showSuggestionsToggle ? 'bg-yellow-950/80 border border-yellow-700 text-yellow-300' : 'bg-neutral-900 border border-neutral-800 text-yellow-500 hover:bg-neutral-800'
+                }`}
+              >
+                <Lock className="w-4 h-4 text-yellow-500" />
+                <span>🔒 관리자 건의함 ({suggestions.length})</span>
+              </button>
+            )}
           </nav>
         </div>
 
@@ -640,7 +654,29 @@ export default function DashboardPage() {
 
         {/* 보고서 목록 */}
         <div className="space-y-4">
-          {filteredReports.length === 0 ? (
+          {showSuggestionsToggle ? (
+            <div className="space-y-4">
+              <h2 className="text-sm font-bold text-yellow-400 flex items-center space-x-2">
+                <Lock className="w-4 h-4" />
+                <span>관리자 전용 비밀 건의함 및 제보 목록</span>
+              </h2>
+              {suggestions.length === 0 ? (
+                <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded">
+                  접수된 건의사항이 없습니다.
+                </div>
+              ) : (
+                suggestions.map((sug) => (
+                  <div key={sug.id} className="bg-neutral-900/90 border border-yellow-900/50 p-5 rounded-lg space-y-2">
+                    <div className="flex justify-between items-center text-xs text-neutral-400 border-b border-neutral-800 pb-2">
+                      <span className="font-bold text-yellow-500">작성자: {sug.author_nickname || '익명'}</span>
+                      <span>{new Date(sug.created_at).toLocaleString()}</span>
+                    </div>
+                    <p className="text-xs text-neutral-200 whitespace-pre-wrap">{sug.content}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          ) : filteredReports.length === 0 ? (
             <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
               <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
               <p>해당 카테고리에 등록된 기밀 문서가 없습니다.</p>
@@ -689,7 +725,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* 상세 보기 모달 (댓글 및 번역 포함) */}
+      {/* 상세 보기 모달 */}
       {selectedReport && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
           <div className="bg-neutral-900 border border-neutral-800 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-lg p-6 space-y-6">
@@ -775,11 +811,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 뱃지 모달 (isOpen 제거 및 올바른 속성 매핑) */}
+      {/* 뱃지 모달 */}
       {showBadgesModal && (
         <UserBadgesModal
           onClose={() => setShowBadgesModal(false)}
-          currentUserId={currentUserId}
           activeBadgeCode={activeBadgeCode}
           userCommentCount={userCommentCount}
           userDeathCount={userDeathCount}
