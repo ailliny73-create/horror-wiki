@@ -32,12 +32,13 @@ export default function AnomalyMap({ reports, onSelectReport }: AnomalyMapProps)
         <span className="text-[10px] text-neutral-500">활성 경고 구역: {activeReports.length}곳 (클릭 시 문서 이동)</span>
       </div>
 
-      <div className="relative w-full h-64 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center overflow-hidden">
+      {/* 💡 상단이 짤리지 않도록 내부 패딩 및 오버플로우 관리 강화 */}
+      <div className="relative w-full h-72 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center overflow-hidden pt-6">
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(220,38,38,0.08)_10%,transparent_70%)] animate-pulse" />
         <div className="absolute w-full h-0.5 bg-red-900/30 top-1/2" />
         <div className="absolute h-full w-0.5 bg-red-900/30 left-1/2" />
 
-        <div className="absolute bottom-3 left-3 text-[10px] text-neutral-600 font-mono">
+        <div className="absolute bottom-3 left-3 text-[10px] text-neutral-600 font-mono z-0">
           [RADAR ONLINE] KOREA PENINSULA SECTOR
         </div>
 
@@ -48,14 +49,15 @@ export default function AnomalyMap({ reports, onSelectReport }: AnomalyMapProps)
               key={idx}
               style={{ top: pos.top, left: pos.left }}
               onClick={() => onSelectReport(r)}
-              className="absolute group cursor-pointer -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform"
+              className="absolute group cursor-pointer -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform z-20"
             >
               <div className="relative flex items-center justify-center">
                 <span className="absolute w-5 h-5 bg-red-600 rounded-full animate-ping opacity-75" />
                 <MapPin className="w-6 h-6 text-red-500 relative z-10 filter drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
               </div>
 
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-30 w-44 bg-neutral-900 border border-red-900 p-2.5 rounded text-[10px] text-neutral-200 shadow-2xl pointer-events-none">
+              {/* 💡 툴팁이 핀 아래쪽(top-full)으로 뜨도록 변경하여 상단 잘림 방지 */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2 hidden group-hover:block z-40 w-44 bg-neutral-900 border border-red-900 p-2.5 rounded text-[10px] text-neutral-200 shadow-2xl pointer-events-none">
                 <p className="font-bold text-red-400 line-clamp-1">{r.title}</p>
                 <p className="text-neutral-400">📍 {r.location}</p>
                 <p className="text-yellow-400 font-bold">{r.danger_level || 'LEVEL 1'}</p>
