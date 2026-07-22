@@ -13,6 +13,7 @@ import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
 import ActiveAgentsWidget from '@/components/ActiveAgentsWidget';
+import CommandCenterHub from '@/components/CommandCenterHub'; // 💡 신규 통제실 허브 임포트
 
 const getKSTDateString = () => {
   const now = new Date();
@@ -1136,7 +1137,6 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4 sm:p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 💡 속도를 2배 느리게(60초) 늦춰서 차분하게 흘러가는 긴급 브리핑 전광판 */}
         {activeNotices.length > 0 && (
           <div className="bg-yellow-950/40 border border-yellow-700/80 rounded-lg p-3 flex items-center space-x-3 overflow-hidden shadow-lg shadow-yellow-950/20 relative">
             <div className="flex items-center space-x-1.5 shrink-0 bg-yellow-900/80 text-yellow-200 text-xs font-extrabold px-2.5 py-1 rounded animate-pulse z-10">
@@ -1150,7 +1150,7 @@ export default function DashboardPage() {
                 style={{
                   display: 'inline-block',
                   whiteSpace: 'nowrap',
-                  animation: 'marquee 60s linear infinite',
+                  animation: 'marquee 40s linear infinite',
                 }}
               >
                 {activeNotices.map((notice) => (
@@ -1215,8 +1215,10 @@ export default function DashboardPage() {
               <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
             
+            {/* 💡 [우측 영역] 생존 테스트, 실시간 접속자 현황, 그리고 신규 통제실 허브(무전/가챠/투표) 장착 완료 */}
             <div className="order-2 w-full space-y-4">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
+              <CommandCenterHub currentUserId={currentUserId} userNickname={userNickname} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
               <ActiveAgentsWidget currentUserId={currentUserId} userNickname={userNickname} />
             </div>
           </div>
