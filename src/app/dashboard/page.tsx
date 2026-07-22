@@ -11,7 +11,7 @@ import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit,
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
-import UserBadgesModal from '@/components/UserBadgesModal'; // 💡 훈장 팝업 모달 임포트
+import UserBadgesModal from '@/components/UserBadgesModal';
 
 export default function DashboardPage() {
   const [lang, setLang] = useState<Language>('kr');
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   
   const [activeBadgeCode, setActiveBadgeCode] = useState<string>('novice');
   const [activeBadgeName, setActiveBadgeName] = useState<string>('신규 요원');
-  const [showBadgesModal, setShowBadgesModal] = useState(false); // 💡 훈장 모달 토글 상태
+  const [showBadgesModal, setShowBadgesModal] = useState(false);
   
   const [isEditingNickname, setIsEditingNickname] = useState(false);
   const [newNickname, setNewNickname] = useState('');
@@ -35,6 +35,10 @@ export default function DashboardPage() {
   const [userLevel, setUserLevel] = useState<number>(5);
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
+
+  // 💡 실시간 훈장 조건 카운트 상태
+  const [userCommentCount, setUserCommentCount] = useState<number>(0);
+  const [userDeathCount, setUserDeathCount] = useState<number>(0);
 
   const [showFake404, setShowFake404] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
@@ -101,6 +105,7 @@ export default function DashboardPage() {
 
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
+        await fetchUserBadgeStats(user.id); // 💡 실시간 댓글 및 사망 통계 조회
 
         if (isUserAdmin) {
           await fetchSuggestions();
@@ -111,6 +116,30 @@ export default function DashboardPage() {
       console.error('Init error:', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 💡 실시간 댓글 수 및 사망 횟수 데이터베이스 조회 함수
+  const fetchUserBadgeStats = async (userId: string) => {
+    // 1. 내가 작성한 댓글 수 조회
+    const { count: commentCount } = await supabase
+      .from('comments')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId);
+
+    if (commentCount !== null) {
+      setUserCommentCount(commentCount);
+    }
+
+    // 2. 내가 겪은 사망 횟수 조회
+    const { count: deathCount } = await supabase
+      .from('survival_logs')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', userId)
+      .eq('result_type', 'death');
+
+    if (deathCount !== null) {
+      setUserDeathCount(deathCount);
     }
   };
 
@@ -436,6 +465,7 @@ export default function DashboardPage() {
       if (currentUserId) {
         await supabase.rpc('add_user_exp', { target_user_id: currentUserId, exp_to_add: 5 });
         await fetchUserProfile(currentUserId, userNickname, isAdmin);
+        await fetchUserBadgeStats(currentUserId); // 💡 댓글 작성 시 즉시 카운트 갱신
       }
       if (selectedReport.user_id && selectedReport.user_id !== currentUserId) {
         await supabase.from('notifications').insert([
@@ -470,6 +500,9 @@ export default function DashboardPage() {
     if (error) {
       alert('Error: ' + error.message);
     } else {
+      if (currentUserId) {
+        await fetchUserBadgeStats(currentUserId); // 💡 답글 작성 시 즉시 카운트 갱신
+      }
       setReplyText('');
       setReplyTargetId(null);
       await fetchComments(selectedReport.id);
@@ -499,7 +532,10 @@ export default function DashboardPage() {
   const handleDeleteComment = async (commentId: string) => {
     if (!confirm('Delete this comment?')) return;
     const { error } = await supabase.from('comments').delete().eq('id', commentId);
-    if (!error) await fetchComments(selectedReport.id);
+    if (!error) {
+      if (currentUserId) await fetchUserBadgeStats(currentUserId);
+      await fetchComments(selectedReport.id);
+    }
   };
 
   const handleDelete = async (reportId: string) => {
@@ -628,14 +664,14 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 💡 훈장 관리 모달 팝업 창 */}
+      {/* 💡 실시간 댓글 수(userCommentCount)와 사망 횟수(userDeathCount) 전달 */}
       {showBadgesModal && (
         <UserBadgesModal
           userId={currentUserId}
           userExp={userExp}
           reportCount={userReportCount}
-          commentCount={0}
-          deathCount={0}
+          commentCount={userCommentCount}
+          deathCount={userDeathCount}
           activeBadge={activeBadgeCode}
           onClose={() => setShowBadgesModal(false)}
           onBadgeChange={(code, name) => {
@@ -762,7 +798,6 @@ export default function DashboardPage() {
                   )}
                 </div>
 
-                {/* 💡 [내 훈장 관리 팝업 열기 버튼] */}
                 <button
                   onClick={() => setShowBadgesModal(true)}
                   className="w-full bg-neutral-900 hover:bg-neutral-800 border border-neutral-700 text-neutral-300 text-[11px] py-1.5 rounded font-bold flex items-center justify-center space-x-1.5 cursor-pointer transition-colors"
@@ -990,7 +1025,6 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* 💡 메인 화면에서는 훈장 위젯을 치우고 지도와 생존 테스트만 깔끔하게 배치 */}
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
