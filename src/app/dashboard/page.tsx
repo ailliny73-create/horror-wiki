@@ -13,7 +13,6 @@ import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
 import UserBadgesModal from '@/components/UserBadgesModal';
 
-// 💡 [핵심 패치] 어떤 환경에서든 한국 표준시(KST) 기준으로 정확한 YYYY-MM-DD를 반환하는 헬퍼 함수
 const getKSTDateString = () => {
   const now = new Date();
   const utcNow = now.getTime() + (now.getTimezoneOffset() * 60 * 1000);
@@ -46,7 +45,7 @@ export default function DashboardPage() {
   const [userLevel, setUserLevel] = useState<number>(5);
   
   const [isCheckedInToday, setIsCheckedInToday] = useState(false);
-  const [isCheckingIn, setIsCheckingIn] = useState(false); // 💡 연타 방지용 로딩 락 상태 추가
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
 
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -71,6 +70,10 @@ export default function DashboardPage() {
 
   const [selectedReport, setSelectedReport] = useState<any | null>(null);
   const [selectedSuggestion, setSelectedSuggestion] = useState<any | null>(null);
+  const [sugComments, setSugComments] = useState<any[]>([]);
+  const [newSugComment, setNewSugComment] = useState('');
+  const [sugCommentLoading, setSugCommentLoading] = useState(false);
+
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
@@ -155,12 +158,9 @@ export default function DashboardPage() {
         await fetchUserProfile(user.id, nickname, isUserAdmin);
         await fetchNotifications(user.id);
         await fetchUserBadgeStats(user.id);
-
-        if (isUserAdmin) {
-          await fetchSuggestions();
-        }
       }
       await fetchReports();
+      await fetchSuggestions(); // 💡 모든 요원이 건의사항을 볼 수 있도록 초기 로딩 포함
     } catch (err) {
       console.error('Init error:', err);
     } finally {
@@ -288,16 +288,13 @@ export default function DashboardPage() {
   };
 
   const handleCheckIn = async () => {
-    // 💡 광클 연타 차단: 이미 통신 중이거나 오늘 출석했으면 무시
     if (!currentUserId || isCheckedInToday || isCheckingIn) return;
-    
     setIsCheckingIn(true);
 
     try {
       const todayStr = getKSTDateString();
       const addedExp = 20;
 
-      // 1. 방어 로직: 클릭 시점에 DB의 최신 last_checkin 값을 한 번 더 검증 (동시성 무한 증식 차단)
       const { data: profileCheck } = await supabase
         .from('user_profiles')
         .select('*')
@@ -323,7 +320,6 @@ export default function DashboardPage() {
         await supabase.from('user_profiles').update({ nickname: userNickname || '특무 요원' }).eq('user_id', currentUserId);
       }
 
-      // 2. 💡 가장 중요: 경험치를 추가하기 "전에" 출석 기록을 확실히 업데이트하여 락업 생성
       const { error: updateError } = await supabase
         .from('user_profiles')
         .update({ last_checkin: todayStr })
@@ -333,7 +329,6 @@ export default function DashboardPage() {
         throw new Error('출석 기록 업데이트 통신에 실패했습니다.');
       }
 
-      // 3. 기록 각인 성공 시에만 안전하게 경험치 추가 부여
       const { error: rpcError } = await supabase.rpc('add_user_exp', {
         target_user_id: currentUserId,
         exp_to_add: addedExp,
@@ -389,6 +384,43 @@ export default function DashboardPage() {
   const fetchSuggestions = async () => {
     const { data, error } = await supabase.from('suggestions').select('*').order('created_at', { ascending: false });
     if (!error && data) setSuggestions(data);
+  };
+
+  const fetchSuggestionComments = async (suggestionId: string) => {
+    const { data } = await supabase.from('suggestion_comments').select('*').eq('suggestion_id', suggestionId).order('created_at', { ascending: true });
+    if (data) setSugComments(data);
+  };
+
+  const handleOpenSuggestionDetail = async (sug: any) => {
+    setSelectedSuggestion(sug);
+    await fetchSuggestionComments(sug.id);
+  };
+
+  const handleAddSuggestionComment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!isAdmin) {
+      alert('🚫 건의사항 답변은 최고 관리자(ADMIN)만 작성할 수 있습니다.');
+      return;
+    }
+    if (!newSugComment.trim() || !selectedSuggestion || sugCommentLoading) return;
+    setSugCommentLoading(true);
+
+    const { error } = await supabase.from('suggestion_comments').insert([
+      {
+        suggestion_id: selectedSuggestion.id,
+        user_id: currentUserId,
+        author_nickname: userNickname || '👑 최고 관리자',
+        content: newSugComment.trim(),
+      },
+    ]);
+
+    if (!error) {
+      setNewSugComment('');
+      await fetchSuggestionComments(selectedSuggestion.id);
+    } else {
+      alert('답변 등록 실패: ' + error.message);
+    }
+    setSugCommentLoading(false);
   };
 
   const renderMaskedText = (text: string, scopeKey: string = '') => {
@@ -960,24 +992,23 @@ export default function DashboardPage() {
               );
             })}
 
-            {isAdmin && (
-              <button
-                onClick={() => setShowSuggestionsToggle(!showSuggestionsToggle)}
-                className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border ${
-                  showSuggestionsToggle
-                    ? 'bg-purple-950 border-purple-700 text-purple-200 shadow-md shadow-purple-950/50'
-                    : 'bg-neutral-950 border-neutral-800 text-purple-400 hover:bg-purple-950/40'
-                }`}
-              >
-                <div className="flex items-center space-x-2.5">
-                  <Lock className="w-4 h-4 text-purple-400 animate-pulse" />
-                  <span>건의사항 함 (실시간)</span>
-                </div>
-                <span className="bg-purple-900/80 text-purple-200 text-[10px] px-1.5 py-0.2 rounded-full">
-                  {suggestions.length}
-                </span>
-              </button>
-            )}
+            {/* 💡 [개편] 모든 요원이 건의사항 함에 접근할 수 있도록 전체 공개 전환 */}
+            <button
+              onClick={() => setShowSuggestionsToggle(!showSuggestionsToggle)}
+              className={`w-full flex items-center justify-between px-3 py-2 rounded text-xs font-bold transition-all cursor-pointer border ${
+                showSuggestionsToggle
+                  ? 'bg-purple-950 border-purple-700 text-purple-200 shadow-md shadow-purple-950/50'
+                  : 'bg-neutral-950 border-neutral-800 text-purple-400 hover:bg-purple-950/40'
+              }`}
+            >
+              <div className="flex items-center space-x-2.5">
+                <Lock className="w-4 h-4 text-purple-400 animate-pulse" />
+                <span>건의사항 함 (전체 공개)</span>
+              </div>
+              <span className="bg-purple-900/80 text-purple-200 text-[10px] px-1.5 py-0.2 rounded-full">
+                {suggestions.length}
+              </span>
+            </button>
           </nav>
 
           {activeTab !== '자유 게시판' && activeTab !== '공지사항' && activeTab !== '내 기록' && !showSuggestionsToggle && (
@@ -1198,14 +1229,15 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {showSuggestionsToggle && isAdmin ? (
+        {/* 💡 [개편] 전체 요원이 볼 수 있는 건의사항 제보함 목록 */}
+        {showSuggestionsToggle ? (
           <div className="space-y-4 animate-fade-in">
             <div className="bg-purple-950/30 border border-purple-900/60 p-4 rounded-lg flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <Lock className="w-6 h-6 text-purple-400 shrink-0" />
                 <div>
-                  <h2 className="text-sm font-bold text-purple-300">최고 관리자 전용 실시간 비공개 건의사항 제보함</h2>
-                  <p className="text-[11px] text-neutral-400">일반 요원들이 사령부에 보낸 익명 건의 및 제보 내역 ({suggestions.length}건)</p>
+                  <h2 className="text-sm font-bold text-purple-300">건의사항 및 사령부 제보 게시판 (전체 공개)</h2>
+                  <p className="text-[11px] text-neutral-400">요원들이 보낸 건의 내역 ({suggestions.length}건) - 👑 최고 관리자만 답변 가능</p>
                 </div>
               </div>
               <button
@@ -1225,7 +1257,7 @@ export default function DashboardPage() {
                 {suggestions.map((sug) => (
                   <div
                     key={sug.id}
-                    onClick={() => setSelectedSuggestion(sug)}
+                    onClick={() => handleOpenSuggestionDetail(sug)}
                     className="bg-neutral-900 border border-neutral-800 p-4 rounded-lg space-y-2 cursor-pointer hover:border-purple-900 transition-all"
                   >
                     <div className="flex justify-between items-center text-xs border-b border-neutral-800 pb-2">
@@ -1233,9 +1265,9 @@ export default function DashboardPage() {
                       <span className="text-[10px] text-neutral-500">{new Date(sug.created_at).toLocaleString()}</span>
                     </div>
                     <p className="text-xs text-neutral-300 line-clamp-2">{sug.content}</p>
-                    <div className="text-[10px] text-neutral-500 flex justify-between">
+                    <div className="text-[10px] text-neutral-500 flex justify-between items-center">
                       <span>제보자: {sug.author_nickname} 요원</span>
-                      <span className="text-purple-400 hover:underline">상세보기 &gt;</span>
+                      <span className="text-purple-400 hover:underline">상세 및 사령부 답변 보기 &gt;</span>
                     </div>
                   </div>
                 ))}
@@ -1341,25 +1373,82 @@ export default function DashboardPage() {
         )}
       </main>
 
+      {/* 💡 [개편] 건의사항 상세 보기 + 오직 관리자만 답변(댓글) 작성 가능 모달 */}
       {selectedSuggestion && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-neutral-900 border border-purple-900 w-full max-w-lg rounded-lg p-6 space-y-4">
+          <div className="bg-neutral-900 border border-purple-900 w-full max-w-xl max-h-[85vh] overflow-y-auto rounded-lg p-6 space-y-5">
             <div className="flex justify-between items-center border-b border-neutral-800 pb-3">
-              <span className="text-xs text-purple-400 font-bold">🔒 비공개 건의사항 제보 상세</span>
+              <span className="text-xs text-purple-400 font-bold">🔒 건의사항 상세 및 사령부 공식 답변</span>
               <button onClick={() => setSelectedSuggestion(null)} className="text-neutral-500 hover:text-white cursor-pointer"><X className="w-5 h-5" /></button>
             </div>
+
             <h2 className="text-base font-bold text-neutral-100">{selectedSuggestion.title}</h2>
             <div className="bg-neutral-950 p-4 rounded border border-neutral-800 text-xs text-neutral-300 whitespace-pre-wrap leading-relaxed">
               {selectedSuggestion.content}
             </div>
+
             <div className="flex justify-between items-center text-[11px] text-neutral-500 border-t border-neutral-800 pt-3">
               <span>제보자: {selectedSuggestion.author_nickname} 요원</span>
-              <button
-                onClick={() => handleDeleteSuggestion(selectedSuggestion.id)}
-                className="bg-red-950 hover:bg-red-900 text-red-300 px-3 py-1.5 rounded border border-red-900 cursor-pointer"
-              >
-                건의사항 파기(삭제)
-              </button>
+              {(isAdmin || currentUserId === selectedSuggestion.user_id) && (
+                <button
+                  onClick={() => handleDeleteSuggestion(selectedSuggestion.id)}
+                  className="bg-red-950 hover:bg-red-900 text-red-300 px-2.5 py-1 rounded border border-red-900 text-xs cursor-pointer"
+                >
+                  삭제
+                </button>
+              )}
+            </div>
+
+            {/* 사령부 답변 댓글 섹션 */}
+            <div className="border-t border-neutral-800 pt-4 space-y-3">
+              <h3 className="text-xs font-bold text-purple-400 flex items-center space-x-1.5">
+                <Crown className="w-3.5 h-3.5 text-yellow-500" />
+                <span>사령부 공식 답변 ({sugComments.length})</span>
+              </h3>
+
+              {isAdmin ? (
+                <form onSubmit={handleAddSuggestionComment} className="flex gap-2">
+                  <input
+                    type="text"
+                    required
+                    value={newSugComment}
+                    onChange={(e) => setNewSugComment(e.target.value)}
+                    placeholder="최고 관리자 전용 답변 입력..."
+                    className="flex-1 bg-neutral-950 border border-purple-900/60 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-purple-600"
+                  />
+                  <button
+                    type="submit"
+                    disabled={sugCommentLoading}
+                    className="bg-purple-900 hover:bg-purple-800 text-white text-xs px-4 py-2 rounded flex items-center space-x-1 font-bold cursor-pointer disabled:opacity-50 shrink-0"
+                  >
+                    {sugCommentLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+                    <span>답변 등록</span>
+                  </button>
+                </form>
+              ) : (
+                <div className="bg-neutral-950/60 border border-neutral-800 p-2.5 rounded text-[11px] text-neutral-500 text-center">
+                  🔒 답변 작성 권한은 최고 관리자(ADMIN)에게만 부여되어 있습니다.
+                </div>
+              )}
+
+              <div className="space-y-2 pt-1 max-h-48 overflow-y-auto">
+                {sugComments.length === 0 ? (
+                  <div className="text-center text-[11px] text-neutral-600 py-3">아직 작성된 공식 답변이 없습니다.</div>
+                ) : (
+                  sugComments.map((sc) => (
+                    <div key={sc.id} className="bg-purple-950/20 border border-purple-900/40 p-3 rounded text-xs space-y-1">
+                      <div className="flex justify-between items-center text-[10px]">
+                        <span className="font-bold text-yellow-400 flex items-center space-x-1">
+                          <Crown className="w-3 h-3 text-yellow-500" />
+                          <span>{sc.author_nickname}</span>
+                        </span>
+                        <span className="text-neutral-500">{new Date(sc.created_at).toLocaleString()}</span>
+                      </div>
+                      <p className="text-neutral-200">{sc.content}</p>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </div>
         </div>
