@@ -1136,7 +1136,7 @@ export default function DashboardPage() {
 
       <main className="flex-1 p-4 sm:p-6 space-y-6 max-w-5xl mx-auto w-full">
         
-        {/* 💡 확실하게 좌측으로 흘러가는 긴급 브리핑 전광판 (인라인 CSS 애니메이션 적용) */}
+        {/* 💡 속도를 2배 느리게(60초) 늦춰서 차분하게 흘러가는 긴급 브리핑 전광판 */}
         {activeNotices.length > 0 && (
           <div className="bg-yellow-950/40 border border-yellow-700/80 rounded-lg p-3 flex items-center space-x-3 overflow-hidden shadow-lg shadow-yellow-950/20 relative">
             <div className="flex items-center space-x-1.5 shrink-0 bg-yellow-900/80 text-yellow-200 text-xs font-extrabold px-2.5 py-1 rounded animate-pulse z-10">
@@ -1150,7 +1150,7 @@ export default function DashboardPage() {
                 style={{
                   display: 'inline-block',
                   whiteSpace: 'nowrap',
-                  animation: 'marquee 20s linear infinite',
+                  animation: 'marquee 60s linear infinite',
                 }}
               >
                 {activeNotices.map((notice) => (
