@@ -106,7 +106,6 @@ export default function DashboardPage() {
     }
   };
 
-  // 💡 [개정된 상향 계급별 필요 경험치 계산 로직]
   const calculateLevel = (exp: number, admin: boolean) => {
     if (admin) return 1;
     if (exp >= 3000) return 1;
@@ -192,7 +191,7 @@ export default function DashboardPage() {
     const todayStr = new Date().toISOString().split('T')[0];
     const addedExp = 20;
 
-    // 💡 [출석 체크 시 닉네임 누락 방지 방어 로직]
+    // 💡 [출석 체크 시 닉네임 누락 원천 방어]
     const { data: profileCheck } = await supabase
       .from('user_profiles')
       .select('*')
