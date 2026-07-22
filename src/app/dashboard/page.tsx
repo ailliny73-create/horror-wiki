@@ -44,8 +44,6 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  
-  // 💡 [내 기록 모드 추가] activeTab에 '내 기록' 포함
   const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
@@ -551,7 +549,6 @@ export default function DashboardPage() {
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
   const filteredReports = reports.filter((report) => {
-    // 💡 [내 기록 탭 선택 시 본인이 작성한 문서만 필터링]
     if (activeTab === '내 기록') {
       if (report.user_id !== currentUserId) return false;
     } else {
@@ -696,7 +693,6 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="flex items-center justify-between font-bold">
-                      {/* 💡 [닉네임 클릭 시 본인 작성 글 모아보기(내 기록) 탭으로 이동] */}
                       <div 
                         onClick={() => {
                           setActiveTab('내 기록');
@@ -771,7 +767,7 @@ export default function DashboardPage() {
               { id: '공지사항', name: t.notice, icon: Megaphone },
               { id: '위험 보고서', name: t.report, icon: AlertCircle },
               { id: '자유 게시판', name: t.freeBoard, icon: Radio },
-              { id: '내 기록', name: `내 기록 (${userReportCount}건)`, icon: User }, // 💡 [내 기록 탭]
+              { id: '내 기록', name: `내 기록 (${userReportCount}건)`, icon: User },
             ].map((tab) => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id && !showSuggestionsToggle;

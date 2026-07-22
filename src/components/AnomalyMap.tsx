@@ -2,8 +2,12 @@
 
 import { MapPin, AlertTriangle } from 'lucide-react';
 
-export default function AnomalyMap({ reports }: { reports: any[] }) {
-  // 간단한 가상 좌표 매핑 (주요 지역 키워드별 화면 위치 %)
+interface AnomalyMapProps {
+  reports: any[];
+  onSelectReport: (report: any) => void;
+}
+
+export default function AnomalyMap({ reports, onSelectReport }: AnomalyMapProps) {
   const getLocationCoords = (loc: string) => {
     if (!loc) return { top: '50%', left: '50%' };
     if (loc.includes('서울')) return { top: '35%', left: '45%' };
@@ -13,7 +17,6 @@ export default function AnomalyMap({ reports }: { reports: any[] }) {
     if (loc.includes('대구')) return { top: '65%', left: '70%' };
     if (loc.includes('대전')) return { top: '55%', left: '50%' };
     if (loc.includes('광주')) return { top: '75%', left: '38%' };
-    // 기본 랜덤 배치
     return { top: `${30 + (loc.length * 7) % 50}%`, left: `${20 + (loc.length * 11) % 60}%` };
   };
 
@@ -26,12 +29,10 @@ export default function AnomalyMap({ reports }: { reports: any[] }) {
           <AlertTriangle className="w-4 h-4 animate-pulse" />
           <span>전국 괴이 발생 레이더 지도 (ANOMALY RADAR)</span>
         </div>
-        <span className="text-[10px] text-neutral-500">활성 경고 구역: {activeReports.length}곳</span>
+        <span className="text-[10px] text-neutral-500">활성 경고 구역: {activeReports.length}곳 (클릭 시 문서 이동)</span>
       </div>
 
-      {/* 가상 레이더 맵 박스 */}
       <div className="relative w-full h-64 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center overflow-hidden">
-        {/* 레이더 스캔 효과선 */}
         <div className="absolute inset-0 bg-[radial-gradient(circle,rgba(220,38,38,0.08)_10%,transparent_70%)] animate-pulse" />
         <div className="absolute w-full h-0.5 bg-red-900/30 top-1/2" />
         <div className="absolute h-full w-0.5 bg-red-900/30 left-1/2" />
@@ -46,18 +47,19 @@ export default function AnomalyMap({ reports }: { reports: any[] }) {
             <div
               key={idx}
               style={{ top: pos.top, left: pos.left }}
-              className="absolute group cursor-pointer -translate-x-1/2 -translate-y-1/2"
+              onClick={() => onSelectReport(r)}
+              className="absolute group cursor-pointer -translate-x-1/2 -translate-y-1/2 hover:scale-125 transition-transform"
             >
               <div className="relative flex items-center justify-center">
-                <span className="absolute w-4 h-4 bg-red-600 rounded-full animate-ping opacity-75" />
-                <MapPin className="w-5 h-5 text-red-500 relative z-10" />
+                <span className="absolute w-5 h-5 bg-red-600 rounded-full animate-ping opacity-75" />
+                <MapPin className="w-6 h-6 text-red-500 relative z-10 filter drop-shadow-[0_0_6px_rgba(239,68,68,0.8)]" />
               </div>
 
-              {/* 호버 시 나타나는 위치 정보 툴팁 */}
-              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-30 w-40 bg-neutral-900 border border-red-900 p-2 rounded text-[10px] text-neutral-200 shadow-xl pointer-events-none">
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover:block z-30 w-44 bg-neutral-900 border border-red-900 p-2.5 rounded text-[10px] text-neutral-200 shadow-2xl pointer-events-none">
                 <p className="font-bold text-red-400 line-clamp-1">{r.title}</p>
                 <p className="text-neutral-400">📍 {r.location}</p>
-                <p className="text-yellow-400">{r.danger_level || 'LEVEL 1'}</p>
+                <p className="text-yellow-400 font-bold">{r.danger_level || 'LEVEL 1'}</p>
+                <p className="text-[9px] text-red-500 mt-1">[클릭하여 문서 열람]</p>
               </div>
             </div>
           );

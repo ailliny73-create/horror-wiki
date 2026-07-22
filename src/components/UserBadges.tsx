@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
-import { Award, ShieldCheck, Flame, Moon, MessageSquare, Skull, Globe, Lock, Check } from 'lucide-react';
+import { Award, ShieldCheck, Flame, Moon, MessageSquare, Skull, Globe, Lock } from 'lucide-react';
 
 export default function UserBadges({ 
   userId, 
@@ -22,71 +22,16 @@ export default function UserBadges({
   const [activeBadge, setActiveBadge] = useState<string>('novice');
   const [loading, setLoading] = useState(true);
 
-  // 💡 각 훈장별 실제 달성 조건(unlocked)을 엄격하게 판정
   const allBadges = [
-    { 
-      code: 'novice', 
-      name: '신규 요원', 
-      desc: '특무 사령부 입과 완료', 
-      icon: ShieldCheck, 
-      unlocked: true // 기본 지급
-    },
-    { 
-      code: 'reporter', 
-      name: '기밀 제보자', 
-      desc: '위험 보고서 1건 이상 작성', 
-      icon: Flame, 
-      unlocked: reportCount >= 1 
-    },
-    { 
-      code: 'night_owl', 
-      name: '심야의 관측자', 
-      desc: '밤 12시~새벽 4시 활동 기록', 
-      icon: Moon, 
-      unlocked: new Date().getHours() >= 0 && new Date().getHours() < 4 // 실제 새벽 시간 접속 시 해금 (또는 원하시면 조건 완화 가능)
-    },
-    { 
-      code: 'debater', 
-      name: '토론의 주파수', 
-      desc: '댓글 10개 이상 작성', 
-      icon: MessageSquare, 
-      unlocked: commentCount >= 10 
-    },
-    { 
-      code: 'disaster', 
-      name: '재앙의 경보병', 
-      desc: 'LEVEL 5 위험 보고서 작성', 
-      icon: Flame, 
-      unlocked: reportCount >= 3 // 예시: 보고서 3건 이상으로 연동
-    },
-    { 
-      code: 'survivor', 
-      name: '사망전대 생존자', 
-      desc: '생존 테스트 사망 3회 이상 겪음', 
-      icon: Skull, 
-      unlocked: deathCount >= 3 
-    },
-    { 
-      code: 'global', 
-      name: '글로벌 관제사', 
-      desc: '보안 2급 이상 달성', 
-      icon: Globe, 
-      unlocked: userExp >= 1500 
-    },
-    { 
-      code: 'veteran', 
-      name: '베테랑 감시관', 
-      desc: '보안 3급 (700 EXP) 달성', 
-      icon: Award, 
-      unlocked: userExp >= 700 
-    },
-    { 
-      code: 'elite', 
-      name: '최정예 요원', 
-      desc: '보안 1급 (3000 EXP) 달성', 
-      icon: Award, 
-      unlocked: userExp >= 3000 
-    },
+    { code: 'novice', name: '신규 요원', desc: '특무 사령부 입과 완료', icon: ShieldCheck, unlocked: true },
+    { code: 'reporter', name: '기밀 제보자', desc: '위험 보고서 1건 이상 작성', icon: Flame, unlocked: reportCount >= 1 },
+    { code: 'night_owl', name: '심야의 관측자', desc: '밤 12시~새벽 4시 활동 기록', icon: Moon, unlocked: new Date().getHours() >= 0 && new Date().getHours() < 4 },
+    { code: 'debater', name: '토론의 주파수', desc: '댓글 10개 이상 작성', icon: MessageSquare, unlocked: commentCount >= 10 },
+    { code: 'disaster', name: '재앙의 경보병', desc: '위험 보고서 3건 이상 작성', icon: Flame, unlocked: reportCount >= 3 },
+    { code: 'survivor', name: '사망전대 생존자', desc: '생존 테스트 사망 3회 이상 겪음', icon: Skull, unlocked: deathCount >= 3 },
+    { code: 'global', name: '글로벌 관제사', desc: '보안 2급 이상 달성', icon: Globe, unlocked: userExp >= 1500 },
+    { code: 'veteran', name: '베테랑 감시관', desc: '보안 3급 (700 EXP) 달성', icon: Award, unlocked: userExp >= 700 },
+    { code: 'elite', name: '최정예 요원', desc: '보안 1급 (3000 EXP) 달성', icon: Award, unlocked: userExp >= 3000 },
   ];
 
   useEffect(() => {
@@ -109,7 +54,6 @@ export default function UserBadges({
   const handleSelectBadge = async (badgeCode: string, badgeName: string, isUnlocked: boolean) => {
     if (!userId) return;
 
-    // 💡 조건 미달성 시 장착 차단 및 경고
     if (!isUnlocked) {
       alert(`🔒 [보안 경고] 아직 [${badgeName}] 훈장 해금 조건을 달성하지 못했습니다!`);
       return;
