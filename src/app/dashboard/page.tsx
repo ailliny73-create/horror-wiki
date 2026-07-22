@@ -703,9 +703,10 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* 💡 [수정 완료] UserBadgesModal 컴포넌트 규격에 완벽히 일치하도록 속성 정돈 */}
+      {/* 💡 [수정 완료] UserBadgesModal 컴포넌트 규격에 맞춰 userId 속성 추가 */}
       {showBadgesModal && (
         <UserBadgesModal
+          userId={currentUserId}
           userExp={userExp}
           reportCount={userReportCount}
           commentCount={userCommentCount}
