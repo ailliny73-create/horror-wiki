@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import { translations, Language } from '@/lib/i18n';
 import { translateToKorean } from '@/lib/translate';
-import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock } from 'lucide-react';
+import { ShieldAlert, Plus, LogOut, MapPin, AlertCircle, FileText, Trash2, Edit, X, Save, UserCheck, Filter, Radio, Megaphone, Shield, MessageSquare, Send, Loader2, Search, Activity, Globe, Flame, AlertTriangle, RefreshCw, Bell, CheckCheck, CalendarCheck, Award, Zap, Crown, Languages, Check, CornerDownRight, ChevronUp, ChevronDown, Lock, User } from 'lucide-react';
 
 import AnomalyMap from '@/components/AnomalyMap';
 import SurvivalTest from '@/components/SurvivalTest';
@@ -44,7 +44,9 @@ export default function DashboardPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항'>('전체');
+  
+  // 💡 [내 기록 모드 추가] activeTab에 '내 기록' 포함
+  const [activeTab, setActiveTab] = useState<'전체' | '위험 보고서' | '자유 게시판' | '공지사항' | '내 기록'>('전체');
   
   const [showSuggestionsToggle, setShowSuggestionsToggle] = useState(false);
   const [dangerFilter, setDangerFilter] = useState<string>('전체');
@@ -549,12 +551,17 @@ export default function DashboardPage() {
   const userReportCount = reports.filter((r) => r.user_id === currentUserId).length;
 
   const filteredReports = reports.filter((report) => {
-    if (hideNotices && report.is_notice && activeTab !== '공지사항') return false;
-    if (activeTab === '공지사항' && !report.is_notice) return false;
-    if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
-    if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
+    // 💡 [내 기록 탭 선택 시 본인이 작성한 문서만 필터링]
+    if (activeTab === '내 기록') {
+      if (report.user_id !== currentUserId) return false;
+    } else {
+      if (hideNotices && report.is_notice && activeTab !== '공지사항') return false;
+      if (activeTab === '공지사항' && !report.is_notice) return false;
+      if (activeTab === '위험 보고서' && (report.category !== '위험 보고서' || report.is_notice)) return false;
+      if (activeTab === '자유 게시판' && (report.category !== '자유 게시판' || report.is_notice)) return false;
+    }
 
-    if (dangerFilter !== '전체' && activeTab !== '공지사항') {
+    if (dangerFilter !== '전체' && activeTab !== '공지사항' && activeTab !== '내 기록') {
       if (!report.danger_level || !report.danger_level.startsWith(dangerFilter)) return false;
     }
 
@@ -689,10 +696,17 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="flex items-center justify-between font-bold">
-                      <div className="flex items-center space-x-1.5">
+                      {/* 💡 [닉네임 클릭 시 본인 작성 글 모아보기(내 기록) 탭으로 이동] */}
+                      <div 
+                        onClick={() => {
+                          setActiveTab('내 기록');
+                          setShowSuggestionsToggle(false);
+                        }}
+                        className="flex items-center space-x-1.5 cursor-pointer group"
+                        title="클릭 시 내가 작성한 기밀 문서 모아보기"
+                      >
                         {isAdmin ? <Crown className="w-4 h-4 text-yellow-500" /> : <UserCheck className="w-3.5 h-3.5 text-red-500" />}
-                        {/* 💡 [장착된 훈장 칭호가 닉네임 앞에 실시간 적용] */}
-                        <span className={isAdmin ? 'text-yellow-400 font-extrabold' : 'text-neutral-200'}>
+                        <span className={isAdmin ? 'text-yellow-400 font-extrabold group-hover:underline' : 'text-neutral-200 group-hover:text-red-400 transition-colors'}>
                           <span className="text-red-400 font-extrabold mr-1">[{activeBadgeName}]</span> {userNickname}
                         </span>
                       </div>
@@ -757,6 +771,7 @@ export default function DashboardPage() {
               { id: '공지사항', name: t.notice, icon: Megaphone },
               { id: '위험 보고서', name: t.report, icon: AlertCircle },
               { id: '자유 게시판', name: t.freeBoard, icon: Radio },
+              { id: '내 기록', name: `내 기록 (${userReportCount}건)`, icon: User }, // 💡 [내 기록 탭]
             ].map((tab) => {
               const Icon = tab.icon;
               const isSelected = activeTab === tab.id && !showSuggestionsToggle;
@@ -800,7 +815,7 @@ export default function DashboardPage() {
             )}
           </nav>
 
-          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && !showSuggestionsToggle && (
+          {activeTab !== '자유 게시판' && activeTab !== '공지사항' && activeTab !== '내 기록' && !showSuggestionsToggle && (
             <div className="space-y-2 pt-2 border-t border-neutral-800">
               <span className="text-[10px] text-neutral-500 flex items-center space-x-1 font-bold">
                 <Filter className="w-3 h-3 text-red-600" />
@@ -934,7 +949,7 @@ export default function DashboardPage() {
         {!showSuggestionsToggle && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <AnomalyMap reports={reports} />
+              <AnomalyMap reports={reports} onSelectReport={handleOpenDetail} />
             </div>
             <div className="space-y-4">
               <SurvivalTest userId={currentUserId} onExpGained={() => { if (currentUserId) fetchUserProfile(currentUserId, userNickname, isAdmin); }} />
@@ -960,7 +975,7 @@ export default function DashboardPage() {
           </div>
           
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            {noticeCount > 0 && activeTab !== '공지사항' && !showSuggestionsToggle && (
+            {noticeCount > 0 && activeTab !== '공지사항' && activeTab !== '내 기록' && !showSuggestionsToggle && (
               <button
                 onClick={() => setHideNotices(!hideNotices)}
                 className="text-xs bg-neutral-950 hover:bg-neutral-800 border border-neutral-800 text-neutral-300 font-bold px-3 py-1.5 rounded transition-all cursor-pointer flex items-center justify-center space-x-1"
@@ -1080,7 +1095,7 @@ export default function DashboardPage() {
             ) : filteredReports.length === 0 ? (
               <div className="text-center text-xs text-neutral-600 py-16 border border-dashed border-neutral-800 rounded space-y-2">
                 <FileText className="w-8 h-8 text-neutral-700 mx-auto" />
-                <p>{t.noDocs}</p>
+                <p>{activeTab === '내 기록' ? '작성하신 기밀 문서가 없습니다.' : t.noDocs}</p>
               </div>
             ) : (
               <div className="space-y-4">
