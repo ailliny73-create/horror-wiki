@@ -14,7 +14,7 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
   const [gachaResult, setGachaResult] = useState<any>(null);
   const [gachaLoading, setGachaLoading] = useState(false);
-  const [gachaDoneToday, setGachaDoneToday] = useState(false); // 💡 오늘 이미 가챠를 돌렸는지 여부
+  const [gachaDoneToday, setGachaDoneToday] = useState(false);
 
   const [hasVoted, setHasVoted] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
@@ -44,12 +44,12 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
   }, [messages]);
 
   const fetchMessages = async () => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('radio_chats')
       .select('*')
       .order('created_at', { ascending: true })
       .limit(50);
-    if (data) setMessages(data);
+    if (!error && data) setMessages(data);
   };
 
   const handleSendRadio = async (e: React.FormEvent) => {
@@ -67,11 +67,12 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
     if (!error) {
       setNewMessage('');
+    } else {
+      alert('무전 송출 실패: ' + error.message);
     }
     setChatLoading(false);
   };
 
-  // 💡 오늘 이미 가챠를 돌렸는지 Supabase나 로컬스토리지로 철저히 방어
   const checkUserStatusToday = async () => {
     if (!currentUserId) return;
     const todayStr = new Date().toISOString().split('T')[0];
@@ -137,60 +138,63 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
       await supabase.rpc('add_user_exp', { target_user_id: currentUserId, exp_to_add: 25 });
       onExpGained();
       fetchVoteStats();
+    } else {
+      alert('투표 기록 저장 실패: ' + error.message);
     }
     setVoteLoading(false);
   };
 
   return (
-    <div className="bg-neutral-900/80 border border-neutral-800 rounded-lg p-4 space-y-4 shadow-xl">
-      <div className="flex items-center justify-between border-b border-neutral-800 pb-3">
-        <div className="flex items-center space-x-2">
-          <ShieldAlert className="w-5 h-5 text-red-500 animate-pulse" />
-          <span className="text-xs font-extrabold text-neutral-200">사령부 통제실 허브 (작전 & 오락)</span>
+    <div className="bg-neutral-900/80 border border-neutral-800 rounded-lg p-3.5 space-y-3 shadow-xl">
+      <div className="flex flex-col space-y-2 border-b border-neutral-800 pb-2.5">
+        <div className="flex items-center space-x-1.5">
+          <ShieldAlert className="w-4 h-4 text-red-500 animate-pulse shrink-0" />
+          <span className="text-xs font-extrabold text-neutral-200 truncate">사령부 통제실 허브</span>
         </div>
         
-        <div className="flex items-center space-x-1.5">
+        {/* 탭 버튼들이 좁은 공간에서도 찌그러지지 않게 꽉 차게 정렬 */}
+        <div className="grid grid-cols-3 gap-1 w-full">
           <button
             onClick={() => setActiveTab('radio')}
-            className={`px-3 py-1.5 rounded text-[11px] font-bold flex items-center space-x-1 cursor-pointer transition-all ${
+            className={`py-1.5 px-1 rounded text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-all ${
               activeTab === 'radio' ? 'bg-red-950 border border-red-800 text-red-300' : 'bg-neutral-950 text-neutral-400 hover:text-white'
             }`}
           >
-            <Radio className="w-3.5 h-3.5" />
-            <span>실시간 무전</span>
+            <Radio className="w-3 h-3 shrink-0" />
+            <span className="truncate">무전</span>
           </button>
           
           <button
             onClick={() => setActiveTab('gacha')}
-            className={`px-3 py-1.5 rounded text-[11px] font-bold flex items-center space-x-1 cursor-pointer transition-all ${
+            className={`py-1.5 px-1 rounded text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-all ${
               activeTab === 'gacha' ? 'bg-yellow-950 border border-yellow-800 text-yellow-300' : 'bg-neutral-950 text-neutral-400 hover:text-white'
             }`}
           >
-            <Dices className="w-3.5 h-3.5" />
-            <span>재난 등급 가챠</span>
+            <Dices className="w-3 h-3 shrink-0" />
+            <span className="truncate">가챠</span>
           </button>
 
           <button
             onClick={() => setActiveTab('vote')}
-            className={`px-3 py-1.5 rounded text-[11px] font-bold flex items-center space-x-1 cursor-pointer transition-all ${
+            className={`py-1.5 px-1 rounded text-[10px] font-bold flex items-center justify-center space-x-1 cursor-pointer transition-all ${
               activeTab === 'vote' ? 'bg-purple-950 border border-purple-800 text-purple-300' : 'bg-neutral-950 text-neutral-400 hover:text-white'
             }`}
           >
-            <Vote className="w-3.5 h-3.5" />
-            <span>양자택일</span>
+            <Vote className="w-3 h-3 shrink-0" />
+            <span className="truncate">양자택일</span>
           </button>
         </div>
       </div>
 
       {activeTab === 'radio' && (
-        <div className="space-y-3 animate-fade-in">
-          <div ref={chatScrollRef} className="h-48 overflow-y-auto bg-neutral-950 border border-neutral-800 p-3 rounded space-y-2 pr-2">
+        <div className="space-y-2.5 animate-fade-in">
+          <div ref={chatScrollRef} className="h-40 overflow-y-auto bg-neutral-950 border border-neutral-800 p-2.5 rounded space-y-1.5 pr-1">
             {messages.length === 0 ? (
-              <div className="text-center text-[11px] text-neutral-600 py-12">수신된 무전 신호가 없습니다. OVER.</div>
+              <div className="text-center text-[10px] text-neutral-600 py-10">수신된 무전 신호가 없습니다. OVER.</div>
             ) : (
               messages.map((msg) => (
-                <div key={msg.id} className="text-xs space-y-0.5 border-b border-neutral-900 pb-1.5">
-                  <div className="flex justify-between items-center text-[10px]">
+                <div key={msg.id} className="text-[11px] space-y-0.5 border-b border-neutral-900 pb-1">
+                  <div className="flex justify-between items-center text-[9px]">
                     <span className="font-bold text-red-400">📻 {msg.nickname} 요원</span>
                     <span className="text-neutral-600">{new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
@@ -200,21 +204,21 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
             )}
           </div>
 
-          <form onSubmit={handleSendRadio} className="flex gap-2">
+          <form onSubmit={handleSendRadio} className="flex gap-1.5">
             <input
               type="text"
               required
               value={newMessage}
               onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="무전 메시지 입력 (OVER.)"
-              className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:border-red-800"
+              placeholder="무전 입력 (OVER.)"
+              className="flex-1 bg-neutral-950 border border-neutral-800 rounded px-2.5 py-1.5 text-[11px] text-neutral-200 focus:outline-none focus:border-red-800"
             />
             <button
               type="submit"
               disabled={chatLoading || !newMessage.trim()}
-              className="bg-red-900 hover:bg-red-800 text-white text-xs px-4 py-2 rounded font-bold flex items-center space-x-1 cursor-pointer disabled:opacity-50 shrink-0"
+              className="bg-red-900 hover:bg-red-800 text-white text-[11px] px-3 py-1.5 rounded font-bold flex items-center space-x-1 cursor-pointer disabled:opacity-50 shrink-0"
             >
-              {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              {chatLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
               <span>송출</span>
             </button>
           </form>
@@ -222,92 +226,92 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
       )}
 
       {activeTab === 'gacha' && (
-        <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-lg text-center space-y-4 animate-fade-in">
-          <div className="space-y-1">
-            <h3 className="text-sm font-bold text-yellow-400 flex items-center justify-center space-x-1.5">
-              <Sparkles className="w-4 h-4 text-yellow-500" />
-              <span>오늘의 요주의 대상 / 재난 등급 측정</span>
+        <div className="bg-neutral-950 border border-neutral-800 p-4 rounded-lg text-center space-y-3 animate-fade-in">
+          <div className="space-y-0.5">
+            <h3 className="text-xs font-bold text-yellow-400 flex items-center justify-center space-x-1">
+              <Sparkles className="w-3.5 h-3.5 text-yellow-500" />
+              <span>재난 등급 측정</span>
             </h3>
-            <p className="text-[11px] text-neutral-500">대응국 요원으로서 오늘의 운명과 경험치(EXP)를 측정합니다.</p>
+            <p className="text-[10px] text-neutral-500">오늘의 운명과 경험치를 측정합니다.</p>
           </div>
 
           {gachaResult ? (
-            <div className="bg-neutral-900 border border-yellow-900/60 p-4 rounded-lg space-y-2">
-              <div className={`text-base font-extrabold ${gachaResult.color}`}>{gachaResult.title}</div>
-              <p className="text-xs text-neutral-300">{gachaResult.desc}</p>
-              {gachaResult.exp > 0 && <div className="text-[11px] text-red-400 font-bold pt-1">습득 경험치: +{gachaResult.exp} EXP</div>}
+            <div className="bg-neutral-900 border border-yellow-900/60 p-3 rounded-lg space-y-1">
+              <div className={`text-sm font-extrabold ${gachaResult.color}`}>{gachaResult.title}</div>
+              <p className="text-[11px] text-neutral-300">{gachaResult.desc}</p>
+              {gachaResult.exp > 0 && <div className="text-[10px] text-red-400 font-bold">습득: +{gachaResult.exp} EXP</div>}
             </div>
           ) : (
-            <div className="py-6 text-xs text-neutral-500 border border-dashed border-neutral-800 rounded">
-              아직 측정 결과가 없습니다. 아래 버튼을 눌러 측정을 개시하십시오.
+            <div className="py-4 text-[11px] text-neutral-500 border border-dashed border-neutral-800 rounded">
+              측정 결과가 없습니다. 버튼을 누르세요.
             </div>
           )}
 
           <button
             onClick={handleGachaPull}
             disabled={gachaLoading || gachaDoneToday}
-            className="w-full bg-yellow-950 hover:bg-yellow-900 border border-yellow-800 text-yellow-200 text-xs py-3 rounded font-extrabold flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 transition-all"
+            className="w-full bg-yellow-950 hover:bg-yellow-900 border border-yellow-800 text-yellow-200 text-xs py-2.5 rounded font-extrabold flex items-center justify-center space-x-1.5 cursor-pointer disabled:opacity-50 transition-all"
           >
-            {gachaLoading ? <Loader2 className="w-4 h-4 animate-spin text-yellow-400" /> : <Dices className="w-4 h-4 text-yellow-400" />}
-            <span>{gachaDoneToday ? '오늘 측정 완료 (내일 다시 가능)' : '🎲 재난 등급 측정 개시'}</span>
+            {gachaLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin text-yellow-400" /> : <Dices className="w-3.5 h-3.5 text-yellow-400" />}
+            <span>{gachaDoneToday ? '오늘 측정 완료' : '🎲 재난 등급 측정 개시'}</span>
           </button>
         </div>
       )}
 
       {activeTab === 'vote' && (
-        <div className="bg-neutral-950 border border-neutral-800 p-5 rounded-lg space-y-4 animate-fade-in">
-          <div className="space-y-1 border-b border-neutral-800 pb-3">
-            <span className="text-[10px] text-purple-400 font-bold">🚨 [재난국 긴급 양자택일 설문]</span>
-            <h3 className="text-xs font-extrabold text-neutral-100 leading-snug">
-              "새벽 3시, 자취방 문밖에서 엄마 목소리로 '밥 먹어라' 하며 문을 두드린다. 문을 연다 vs 절대 무시한다"
+        <div className="bg-neutral-950 border border-neutral-800 p-4 rounded-lg space-y-3 animate-fade-in">
+          <div className="space-y-1 border-b border-neutral-800 pb-2.5">
+            <span className="text-[9px] text-purple-400 font-bold">🚨 [재난국 긴급 양자택일]</span>
+            <h3 className="text-[11px] font-extrabold text-neutral-100 leading-snug">
+              "새벽 3시, 자취방 문밖에서 엄마 목소리로 '밥 먹어라' 하며 문을 두드린다."
             </h3>
           </div>
 
           {hasVoted ? (
-            <div className="space-y-3">
-              <div className="bg-purple-950/30 border border-purple-900/60 p-3 rounded text-center text-xs text-purple-300 font-bold flex items-center justify-center space-x-1.5">
-                <CheckCircle2 className="w-4 h-4 text-purple-400" />
-                <span>투표 완료! (선택한 항목: {myVote === 'A' ? '🚪 문을 연다' : '🛡️ 절대 무시한다'}) [+25 EXP]</span>
+            <div className="space-y-2.5">
+              <div className="bg-purple-950/30 border border-purple-900/60 p-2.5 rounded text-center text-[11px] text-purple-300 font-bold flex items-center justify-center space-x-1">
+                <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                <span>투표 완료 ({myVote === 'A' ? '문을 연다' : '절대 무시'}) [+25 EXP]</span>
               </div>
 
-              <div className="space-y-2 text-xs">
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-neutral-400">
+              <div className="space-y-2 text-[11px]">
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[9px] text-neutral-400">
                     <span>🚪 문을 연다</span>
                     <span>{voteStats.total > 0 ? Math.round((voteStats.choiceA / voteStats.total) * 100) : 0}% ({voteStats.choiceA}명)</span>
                   </div>
-                  <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800">
+                  <div className="w-full bg-neutral-900 h-1.5 rounded-full overflow-hidden border border-neutral-800">
                     <div className="bg-red-600 h-full" style={{ width: `${voteStats.total > 0 ? (voteStats.choiceA / voteStats.total) * 100 : 0}%` }} />
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[10px] text-neutral-400">
+                <div className="space-y-0.5">
+                  <div className="flex justify-between text-[9px] text-neutral-400">
                     <span>🛡️ 절대 무시한다</span>
                     <span>{voteStats.total > 0 ? Math.round((voteStats.choiceB / voteStats.total) * 100) : 0}% ({voteStats.choiceB}명)</span>
                   </div>
-                  <div className="w-full bg-neutral-900 h-2 rounded-full overflow-hidden border border-neutral-800">
+                  <div className="w-full bg-neutral-900 h-1.5 rounded-full overflow-hidden border border-neutral-800">
                     <div className="bg-purple-600 h-full" style={{ width: `${voteStats.total > 0 ? (voteStats.choiceB / voteStats.total) * 100 : 0}%` }} />
                   </div>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 pt-1">
+            <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 onClick={() => handleVote('A')}
                 disabled={voteLoading}
-                className="bg-neutral-900 hover:bg-red-950/80 border border-neutral-800 hover:border-red-800 p-3 rounded text-xs font-bold text-neutral-200 cursor-pointer transition-all text-center space-y-1"
+                className="bg-neutral-900 hover:bg-red-950/80 border border-neutral-800 hover:border-red-800 p-2.5 rounded text-[11px] font-bold text-neutral-200 cursor-pointer transition-all text-center"
               >
-                <div>🚪 문을 연다</div>
+                🚪 문을 연다
               </button>
 
               <button
                 onClick={() => handleVote('B')}
                 disabled={voteLoading}
-                className="bg-neutral-900 hover:bg-purple-950/80 border border-neutral-800 hover:border-purple-800 p-3 rounded text-xs font-bold text-neutral-200 cursor-pointer transition-all text-center space-y-1"
+                className="bg-neutral-900 hover:bg-purple-950/80 border border-neutral-800 hover:border-purple-800 p-2.5 rounded text-[11px] font-bold text-neutral-200 cursor-pointer transition-all text-center"
               >
-                <div>🛡️ 절대 무시한다</div>
+                🛡️ 절대 무시
               </button>
             </div>
           )}
