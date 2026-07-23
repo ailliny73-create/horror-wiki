@@ -14,7 +14,7 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
   const [gachaResult, setGachaResult] = useState<any>(null);
   const [gachaLoading, setGachaLoading] = useState(false);
-  const [gachaCooldown, setGachaCooldown] = useState(false);
+  const [gachaDoneToday, setGachaDoneToday] = useState(false); // 💡 오늘 이미 가챠를 돌렸는지 여부
 
   const [hasVoted, setHasVoted] = useState(false);
   const [myVote, setMyVote] = useState<string | null>(null);
@@ -23,7 +23,7 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
   useEffect(() => {
     fetchMessages();
-    checkUserVote();
+    checkUserStatusToday();
 
     const channel = supabase
       .channel('public:radio_chats')
@@ -71,9 +71,30 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
     setChatLoading(false);
   };
 
+  // 💡 오늘 이미 가챠를 돌렸는지 Supabase나 로컬스토리지로 철저히 방어
+  const checkUserStatusToday = async () => {
+    if (!currentUserId) return;
+    const todayStr = new Date().toISOString().split('T')[0];
+    const savedGachaDate = localStorage.getItem(`gacha_date_${currentUserId}`);
+    if (savedGachaDate === todayStr) {
+      setGachaDoneToday(true);
+      setGachaResult({ title: '🎲 오늘의 측정 완료', desc: '이미 오늘 재난 등급 측정을 완료하셨습니다.', exp: 0, color: 'text-neutral-400' });
+    }
+
+    const { data } = await supabase.from('survival_votes').select('*').eq('user_id', currentUserId).single();
+    if (data) {
+      setHasVoted(true);
+      setMyVote(data.choice);
+    }
+    fetchVoteStats();
+  };
+
   const handleGachaPull = async () => {
-    if (gachaLoading || gachaCooldown || !currentUserId) return;
+    if (gachaLoading || gachaDoneToday || !currentUserId) return;
     setGachaLoading(true);
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    localStorage.setItem(`gacha_date_${currentUserId}`, todayStr);
 
     const rand = Math.random() * 100;
     let resultObj: any = {};
@@ -93,17 +114,7 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
     setGachaResult(resultObj);
     setGachaLoading(false);
-    setGachaCooldown(true);
-  };
-
-  const checkUserVote = async () => {
-    if (!currentUserId) return;
-    const { data } = await supabase.from('survival_votes').select('*').eq('user_id', currentUserId).single();
-    if (data) {
-      setHasVoted(true);
-      setMyVote(data.choice);
-    }
-    fetchVoteStats();
+    setGachaDoneToday(true);
   };
 
   const fetchVoteStats = async () => {
@@ -224,7 +235,7 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
             <div className="bg-neutral-900 border border-yellow-900/60 p-4 rounded-lg space-y-2">
               <div className={`text-base font-extrabold ${gachaResult.color}`}>{gachaResult.title}</div>
               <p className="text-xs text-neutral-300">{gachaResult.desc}</p>
-              <div className="text-[11px] text-red-400 font-bold pt-1">습득 경험치: +{gachaResult.exp} EXP</div>
+              {gachaResult.exp > 0 && <div className="text-[11px] text-red-400 font-bold pt-1">습득 경험치: +{gachaResult.exp} EXP</div>}
             </div>
           ) : (
             <div className="py-6 text-xs text-neutral-500 border border-dashed border-neutral-800 rounded">
@@ -234,11 +245,11 @@ export default function CommandCenterHub({ currentUserId, userNickname, onExpGai
 
           <button
             onClick={handleGachaPull}
-            disabled={gachaLoading || gachaCooldown}
+            disabled={gachaLoading || gachaDoneToday}
             className="w-full bg-yellow-950 hover:bg-yellow-900 border border-yellow-800 text-yellow-200 text-xs py-3 rounded font-extrabold flex items-center justify-center space-x-2 cursor-pointer disabled:opacity-50 transition-all"
           >
             {gachaLoading ? <Loader2 className="w-4 h-4 animate-spin text-yellow-400" /> : <Dices className="w-4 h-4 text-yellow-400" />}
-            <span>{gachaCooldown ? '측정 완료 (재측정 불가)' : '🎲 재난 등급 측정 개시'}</span>
+            <span>{gachaDoneToday ? '오늘 측정 완료 (내일 다시 가능)' : '🎲 재난 등급 측정 개시'}</span>
           </button>
         </div>
       )}
